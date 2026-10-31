@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.smartstock.core.dto.ProductoRequest;
+import com.smartstock.core.dto.MovimientoStockResponse;
 import com.smartstock.core.dto.ProductoResponse;
 import com.smartstock.core.exception.NegocioException;
 import com.smartstock.core.exception.RecursoNoEncontradoException;
@@ -14,16 +15,30 @@ import com.smartstock.core.model.Categoria;
 import com.smartstock.core.model.Producto;
 import com.smartstock.core.repository.CategoriaRepository;
 import com.smartstock.core.repository.ProductoRepository;
+import com.smartstock.core.repository.MovimientoStockRepository;
 
 @Service
 public class ProductoService {
 
     private final ProductoRepository productoRepository;
     private final CategoriaRepository categoriaRepository;
+    private final MovimientoStockRepository movimientoRepository;
 
-    public ProductoService(ProductoRepository productoRepository, CategoriaRepository categoriaRepository) {
+    public ProductoService(ProductoRepository productoRepository, CategoriaRepository categoriaRepository,
+                           MovimientoStockRepository movimientoRepository) {
         this.productoRepository = productoRepository;
         this.categoriaRepository = categoriaRepository;
+        this.movimientoRepository = movimientoRepository;
+    }
+
+    /** Conserva el historial incluso después de la baja lógica del producto. */
+    @Transactional(readOnly = true)
+    public List<MovimientoStockResponse> movimientos(Long id) {
+        if (!productoRepository.existsById(id)) {
+            throw new RecursoNoEncontradoException("Producto " + id + " no encontrado");
+        }
+        return movimientoRepository.findHistorial(id).stream()
+                .map(MovimientoStockResponse::desde).toList();
     }
 
     /** Lista los productos activos, filtrando opcionalmente por texto (nombre o SKU) y categoría. */
