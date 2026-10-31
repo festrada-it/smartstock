@@ -13,6 +13,20 @@ jobs:
     defaults:
       run:
         working-directory: core-service
+    env:
+      SMARTSTOCK_INTEGRACION: 'true'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: smartstock
+          POSTGRES_USER: smartstock
+          POSTGRES_PASSWORD: smartstock
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smartstock -d smartstock"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -20,6 +34,11 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+      - name: Inicializar esquema y datos de prueba
+        run: |
+          for script in ../database/init/*.sql; do
+            docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U smartstock -d smartstock < "$script"
+          done
       - run: chmod +x mvnw && ./mvnw -B verify
 
   analytics-service:
@@ -28,6 +47,21 @@ jobs:
     defaults:
       run:
         working-directory: analytics-service
+    env:
+      SMARTSTOCK_INTEGRACION: 'true'
+      DATABASE_URL: postgresql+psycopg://smartstock:smartstock@localhost:5432/smartstock
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: smartstock
+          POSTGRES_USER: smartstock
+          POSTGRES_PASSWORD: smartstock
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smartstock -d smartstock"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

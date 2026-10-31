@@ -35,6 +35,9 @@ public class Venta {
     @Column(nullable = false)
     private BigDecimal total = BigDecimal.ZERO;
 
+    @Column(nullable = false)
+    private boolean anulada;
+
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DetalleVenta> detalles = new ArrayList<>();
 
@@ -56,4 +59,7 @@ public class Venta {
     public void setTotal(BigDecimal total) { this.total = total; }
 
     public List<DetalleVenta> getDetalles() { return detalles; }
+
+    public boolean isAnulada() { return anulada; }
+    public void setAnulada(boolean anulada) { this.anulada = anulada; }
 }

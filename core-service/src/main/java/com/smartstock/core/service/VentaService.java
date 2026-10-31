@@ -4,6 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Comparator;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,10 +56,14 @@ public class VentaService {
         BigDecimal total = BigDecimal.ZERO;
         List<MovimientoStock> movimientos = new ArrayList<>();
 
+        // Todas las operaciones de varios productos toman los bloqueos en el mismo orden.
+        Map<Long, Producto> productos = bloquearProductos(request.items().stream()
+                .map(VentaRequest.Item::productoId).toList());
         for (VentaRequest.Item item : request.items()) {
-            Producto producto = productoRepository.findByIdParaActualizar(item.productoId())
-                    .filter(Producto::getActivo)
-                    .orElseThrow(() -> new RecursoNoEncontradoException("Producto " + item.productoId() + " no encontrado"));
+            Producto producto = productos.get(item.productoId());
+            if (!producto.getActivo()) {
+                throw new RecursoNoEncontradoException("Producto " + item.productoId() + " no encontrado");
+            }
 
             if (producto.getStockActual() < item.cantidad()) {
                 throw new NegocioException("Stock insuficiente para " + producto.getNombre()
@@ -82,5 +89,44 @@ public class VentaService {
         return ventaRepository.findDesdeConDetalles(LocalDate.now().atStartOfDay()).stream()
                 .map(VentaResponse::desde)
                 .toList();
+    }
+
+    /** La venta permanece para auditoría; el bloqueo evita devolver el stock dos veces. */
+    @Transactional
+    public VentaResponse anular(Long id, String emailUsuario) {
+        Venta venta = ventaRepository.findByIdParaActualizar(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Venta " + id + " no encontrada"));
+        if (venta.isAnulada()) {
+            throw new NegocioException("La venta " + id + " ya está anulada");
+        }
+        Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario " + emailUsuario + " no encontrado"));
+        Map<Long, Producto> productos = bloquearProductos(venta.getDetalles().stream()
+                .map(d -> d.getProducto().getId()).toList());
+        List<MovimientoStock> movimientos = new ArrayList<>();
+        for (DetalleVenta detalle : venta.getDetalles()) {
+            Producto producto = productos.get(detalle.getProducto().getId());
+            try {
+                producto.setStockActual(Math.addExact(producto.getStockActual(), detalle.getCantidad()));
+            } catch (ArithmeticException e) {
+                throw new NegocioException("El stock de " + producto.getNombre() + " supera el máximo permitido");
+            }
+            MovimientoStock movimiento = new MovimientoStock(producto, TipoMovimiento.AJUSTE,
+                    detalle.getCantidad(), usuario);
+            movimiento.setVenta(venta);
+            movimiento.setObservacion("Anulación de venta " + id);
+            movimientos.add(movimiento);
+        }
+        venta.setAnulada(true);
+        movimientoRepository.saveAll(movimientos);
+        return VentaResponse.desde(venta);
+    }
+
+    private Map<Long, Producto> bloquearProductos(List<Long> ids) {
+        Map<Long, Producto> productos = new HashMap<>();
+        ids.stream().distinct().sorted(Comparator.naturalOrder()).forEach(id ->
+                productos.put(id, productoRepository.findByIdParaActualizar(id)
+                        .orElseThrow(() -> new RecursoNoEncontradoException("Producto " + id + " no encontrado"))));
+        return productos;
     }
 }
