@@ -41,6 +41,31 @@
             </div>
         </section>
 
+        <!-- Panel unificado de alertas (#33) -->
+        <section class="tarjeta tw-mb-6" aria-labelledby="titulo-panel">
+            <div class="tw-mb-3 tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-2">
+                <h2 id="titulo-panel" class="tw-m-0 tw-text-base tw-font-semibold tw-text-slate-800">Panel de alertas</h2>
+                <div class="tw-flex tw-flex-wrap tw-gap-2">
+                    <select id="filtro-tipo-alerta" class="form-select form-select-sm tw-w-auto" aria-label="Filtrar por tipo">
+                        <option value="">Todos los tipos</option>
+                    </select>
+                    <select id="filtro-criticidad-alerta" class="form-select form-select-sm tw-w-auto" aria-label="Filtrar por criticidad">
+                        <option value="">Todas las criticidades</option>
+                        <option value="ALTA">Alta</option>
+                        <option value="MEDIA">Media</option>
+                        <option value="BAJA">Baja</option>
+                    </select>
+                </div>
+            </div>
+            <div id="aviso-ejemplo-alertas" class="alert alert-warning tw-py-2 d-none">
+                <strong>Datos de ejemplo.</strong> El panel unificado todavía no está disponible en analytics (#32).
+            </div>
+            <div id="contadores-alertas" class="tw-mb-3 tw-flex tw-flex-wrap tw-gap-2"></div>
+            <div id="panel-alertas" class="tw-flex tw-max-h-96 tw-flex-col tw-gap-2 tw-overflow-y-auto" aria-live="polite">
+                <div class="tw-text-sm tw-text-slate-500">Cargando...</div>
+            </div>
+        </section>
+
         <section class="tw-mb-6 tw-grid tw-grid-cols-1 tw-gap-4 lg:tw-grid-cols-3">
             <!-- Proyección de stock -->
             <div class="tarjeta lg:tw-col-span-2">
@@ -101,6 +126,8 @@
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/layout.js"></script>
+<script src="js/datos-ejemplo-alertas.js"></script>
 <script src="js/dashboard.js"></script>
+<script src="js/panel-alertas.js"></script>
 </body>
 </html>
