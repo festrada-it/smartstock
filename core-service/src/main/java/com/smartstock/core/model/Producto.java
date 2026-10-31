@@ -47,7 +47,7 @@ public class Producto {
     private Integer stockActual = 0;
 
     @Column(name = "stock_minimo", nullable = false)
-    private Integer stockMinimo = 0;
+    private Integer stockMinimo = 30;
 
     @Column(nullable = false)
     private Boolean activo = true;

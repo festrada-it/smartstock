@@ -68,6 +68,7 @@ class ControllersTest {
                 Arguments.of("PUT", "/api/productos/1", producto, 200, false),
                 Arguments.of("DELETE", "/api/productos/1", "", 204, false),
                 Arguments.of("GET", "/api/categorias", "", 200, true),
+                Arguments.of("PUT", "/api/categorias/1", "{\"nombre\":\"Almacén\",\"diasAlertaVencimiento\":60,\"umbralRotacion\":0.1}", 200, false),
                 Arguments.of("GET", "/api/parametros", "", 200, true),
                 Arguments.of("GET", "/api/usuarios", "", 200, false),
                 Arguments.of("POST", "/api/usuarios", "{\"nombre\":\"Ana\",\"email\":\"ana@example.com\",\"password\":\"prueba123\",\"rol\":\"VENDEDOR\"}", 201, false),
@@ -86,6 +87,11 @@ class ControllersTest {
     @ParameterizedTest
     @MethodSource("rutas")
     void adminAccedeATodasLasRutas(String metodo, String ruta, String cuerpo, int estado, boolean vendedor) throws Exception {
+        if(ruta.equals("/api/categorias/1")) {
+            var categoria=new com.smartstock.core.model.Categoria();categoria.setId(1L);categoria.setNombre("Almacén");
+            when(categorias.findById(1L)).thenReturn(java.util.Optional.of(categoria));
+            when(categorias.save(any())).thenAnswer(inv->inv.getArgument(0));
+        }
         mvc.perform(peticion(metodo, ruta, cuerpo).header("Authorization", token(Rol.ADMIN)))
                 .andExpect(status().is(estado));
     }

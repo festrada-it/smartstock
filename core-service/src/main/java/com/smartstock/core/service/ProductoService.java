@@ -16,6 +16,8 @@ import com.smartstock.core.model.Producto;
 import com.smartstock.core.repository.CategoriaRepository;
 import com.smartstock.core.repository.ProductoRepository;
 import com.smartstock.core.repository.MovimientoStockRepository;
+import com.smartstock.core.repository.ProveedorRepository;
+import com.smartstock.core.model.Proveedor;
 
 @Service
 public class ProductoService {
@@ -23,12 +25,14 @@ public class ProductoService {
     private final ProductoRepository productoRepository;
     private final CategoriaRepository categoriaRepository;
     private final MovimientoStockRepository movimientoRepository;
+    private final ProveedorRepository proveedorRepository;
 
     public ProductoService(ProductoRepository productoRepository, CategoriaRepository categoriaRepository,
-                           MovimientoStockRepository movimientoRepository) {
+                           MovimientoStockRepository movimientoRepository,ProveedorRepository proveedorRepository) {
         this.productoRepository = productoRepository;
         this.categoriaRepository = categoriaRepository;
         this.movimientoRepository = movimientoRepository;
+        this.proveedorRepository=proveedorRepository;
     }
 
     /** Conserva el historial incluso después de la baja lógica del producto. */
@@ -43,7 +47,7 @@ public class ProductoService {
 
     /** Lista los productos activos, filtrando opcionalmente por texto (nombre o SKU) y categoría. */
     @Transactional(readOnly = true)
-    public List<ProductoResponse> listar(String busqueda, Long categoriaId) {
+    public List<ProductoResponse> listar(String busqueda, Long categoriaId,Long proveedorId) {
         String texto = busqueda == null ? "" : busqueda.trim().toLowerCase(Locale.ROOT);
         return productoRepository.findActivosConCategoria().stream()
                 .filter(p -> texto.isEmpty()
@@ -51,6 +55,7 @@ public class ProductoService {
                         || p.getSku().toLowerCase(Locale.ROOT).contains(texto))
                 .filter(p -> categoriaId == null
                         || (p.getCategoria() != null && categoriaId.equals(p.getCategoria().getId())))
+                .filter(p -> proveedorId==null || (p.getProveedor()!=null && proveedorId.equals(p.getProveedor().getId())))
                 .map(ProductoResponse::desde)
                 .toList();
     }
@@ -100,6 +105,9 @@ public class ProductoService {
         producto.setCosto(request.costo());
         producto.setStockActual(request.stockActual());
         producto.setStockMinimo(request.stockMinimo());
+        producto.setMarca(request.marca()==null?null:request.marca().trim());
+        producto.setProveedor(request.proveedorId()==null?null:proveedorRepository.findById(request.proveedorId())
+                .filter(Proveedor::isActivo).orElseThrow(()->new RecursoNoEncontradoException("Proveedor "+request.proveedorId()+" no encontrado")));
     }
 
     private Categoria buscarCategoria(Long categoriaId) {
