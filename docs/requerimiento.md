@@ -84,7 +84,7 @@ Cada venta a un cliente es un pedido.
 | Alerta | Cuándo salta | Acción sugerida |
 |---|---|---|
 | Quiebre de stock | El stock proyectado llega a cero | Reponer |
-| Debajo del mínimo | Stock actual menor al mínimo de seguridad | Reponer |
+| Debajo del mínimo | Stock actual menor o igual al mínimo de seguridad (`stock ≤ mínimo`) | Reponer |
 | Comprar ahora | Stock proyectado ≤ demanda diaria × días de entrega del proveedor + stock mínimo (con margen extra si el proveedor es malo) | Fecha límite para pedir y cantidad sugerida |
 | Próximo a vencer | El lote vence en los próximos N días (**60 por defecto**, configurable por grupo) | Vender ese lote primero |
 | Baja rotación | Vende menos del umbral del grupo (ej. **10% del stock en 30 días**) | Promocionar o mover el producto, comprar menos o no recomprar |
