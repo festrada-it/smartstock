@@ -1,4 +1,25 @@
 /* Estilos propios de SmartStock (lo que no cubren Bootstrap ni Tailwind) */
-.navbar-brand {
-    letter-spacing: 0.5px;
+.btn-marca {
+    --bs-btn-color: #fff;
+    --bs-btn-bg: #5b2d90;
+    --bs-btn-border-color: #5b2d90;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: #45206f;
+    --bs-btn-hover-border-color: #45206f;
+    --bs-btn-active-bg: #45206f;
+    --bs-btn-disabled-bg: #5b2d90;
+    --bs-btn-disabled-border-color: #5b2d90;
+}
+
+#sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+}
+
+.tarjeta {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
 }

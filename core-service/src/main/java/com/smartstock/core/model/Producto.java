@@ -4,9 +4,12 @@ import java.math.BigDecimal;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
@@ -23,20 +26,24 @@ public class Producto {
     @Column(nullable = false)
     private String nombre;
 
-    @Column(name = "categoria_id")
-    private Long categoriaId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "categoria_id")
+    private Categoria categoria;
 
     @Column(nullable = false)
     private BigDecimal precio;
 
+    @Column(nullable = false)
+    private BigDecimal costo;
+
     @Column(name = "stock_actual", nullable = false)
-    private Integer stockActual;
+    private Integer stockActual = 0;
 
     @Column(name = "stock_minimo", nullable = false)
-    private Integer stockMinimo;
+    private Integer stockMinimo = 0;
 
     @Column(nullable = false)
-    private Boolean activo;
+    private Boolean activo = true;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -47,11 +54,14 @@ public class Producto {
     public String getNombre() { return nombre; }
     public void setNombre(String nombre) { this.nombre = nombre; }
 
-    public Long getCategoriaId() { return categoriaId; }
-    public void setCategoriaId(Long categoriaId) { this.categoriaId = categoriaId; }
+    public Categoria getCategoria() { return categoria; }
+    public void setCategoria(Categoria categoria) { this.categoria = categoria; }
 
     public BigDecimal getPrecio() { return precio; }
     public void setPrecio(BigDecimal precio) { this.precio = precio; }
+
+    public BigDecimal getCosto() { return costo; }
+    public void setCosto(BigDecimal costo) { this.costo = costo; }
 
     public Integer getStockActual() { return stockActual; }
     public void setStockActual(Integer stockActual) { this.stockActual = stockActual; }

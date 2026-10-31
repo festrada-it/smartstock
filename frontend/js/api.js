@@ -1,0 +1,92 @@
+// Sesión del usuario (token JWT guardado en localStorage) y helpers para llamar a los microservicios.
+
+const CLAVE_SESION = 'smartstock_sesion';
+
+const Sesion = {
+    guardar(datos) {
+        localStorage.setItem(CLAVE_SESION, JSON.stringify(datos));
+    },
+    obtener() {
+        return JSON.parse(localStorage.getItem(CLAVE_SESION) || 'null');
+    },
+    cerrar() {
+        localStorage.removeItem(CLAVE_SESION);
+        window.location.href = 'login.html';
+    },
+    esAdmin() {
+        return this.obtener()?.rol === 'ADMIN';
+    },
+    /** Redirige al login si no hay sesión, o a su pantalla de inicio si el rol no tiene acceso. */
+    requerir(rolesPermitidos) {
+        const sesion = this.obtener();
+        if (!sesion) {
+            window.location.href = 'login.html';
+            return null;
+        }
+        if (rolesPermitidos && !rolesPermitidos.includes(sesion.rol)) {
+            window.location.href = paginaInicio(sesion.rol);
+            return null;
+        }
+        return sesion;
+    },
+};
+
+function paginaInicio(rol) {
+    return rol === 'ADMIN' ? 'dashboard.html' : 'ventas.html';
+}
+
+async function llamarApi(baseUrl, ruta, opciones = {}) {
+    const sesion = Sesion.obtener();
+    const headers = { 'Content-Type': 'application/json' };
+    if (sesion) headers.Authorization = `Bearer ${sesion.token}`;
+
+    const respuesta = await fetch(baseUrl + ruta, {
+        method: opciones.method || 'GET',
+        headers,
+        body: opciones.body !== undefined ? JSON.stringify(opciones.body) : undefined,
+    });
+
+    if (respuesta.status === 401 && sesion) {
+        Sesion.cerrar();
+        throw new Error('La sesión expiró');
+    }
+    if (!respuesta.ok) {
+        let mensaje = `Error ${respuesta.status}`;
+        try {
+            const error = await respuesta.json();
+            mensaje = error.error || error.detail || mensaje;
+        } catch { /* respuesta sin cuerpo JSON */ }
+        throw new Error(mensaje);
+    }
+    return respuesta.status === 204 ? null : respuesta.json();
+}
+
+const coreApi = (ruta, opciones) => llamarApi(CONFIG.CORE_API, ruta, opciones);
+const analyticsApi = (ruta, opciones) => llamarApi(CONFIG.ANALYTICS_API, ruta, opciones);
+
+function escaparHtml(texto) {
+    const div = document.createElement('div');
+    div.textContent = texto ?? '';
+    return div.innerHTML;
+}
+
+function formatoMoneda(valor) {
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(valor ?? 0);
+}
+
+function formatoFecha(isoFecha) {
+    if (!isoFecha) return '-';
+    const [anio, mes, dia] = isoFecha.slice(0, 10).split('-');
+    return `${dia}/${mes}/${anio}`;
+}
+
+/** Muestra un mensaje temporal (tipo: success | danger | warning | info) en el contenedor #mensajes. */
+function mostrarMensaje(texto, tipo = 'success') {
+    const contenedor = document.getElementById('mensajes');
+    if (!contenedor) return alert(texto);
+    const alerta = document.createElement('div');
+    alerta.className = `alert alert-${tipo} alert-dismissible fade show`;
+    alerta.innerHTML = `${escaparHtml(texto)}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+    contenedor.prepend(alerta);
+    setTimeout(() => alerta.remove(), 6000);
+}

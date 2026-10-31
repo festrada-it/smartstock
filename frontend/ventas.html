@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartStock - Ventas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/tailwind-config.js"></script>
+    <link href="css/styles.css" rel="stylesheet">
+</head>
+<body class="tw-bg-slate-50">
+<div class="tw-flex">
+    <aside id="sidebar" class="tw-w-64 tw-shrink-0 tw-border-r tw-bg-white"></aside>
+
+    <main class="tw-flex-1 tw-p-8">
+        <h1 class="tw-mb-6 tw-text-2xl tw-font-bold tw-text-slate-800">Registro de ventas</h1>
+        <div id="mensajes"></div>
+
+        <div class="tw-grid tw-grid-cols-1 tw-gap-4 lg:tw-grid-cols-5">
+            <!-- Búsqueda rápida -->
+            <section class="tarjeta lg:tw-col-span-2">
+                <h2 class="tw-mb-3 tw-text-base tw-font-semibold">Buscar productos</h2>
+                <input id="buscador" type="search" class="form-control mb-3" placeholder="Nombre o SKU (Enter agrega el primero)" autofocus>
+                <div id="resultados" class="list-group tw-max-h-[28rem] tw-overflow-y-auto"></div>
+            </section>
+
+            <!-- Venta actual -->
+            <section class="tarjeta lg:tw-col-span-3 tw-flex tw-flex-col">
+                <h2 class="tw-mb-3 tw-text-base tw-font-semibold">Venta actual</h2>
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th class="tw-w-28">Cantidad</th>
+                            <th class="text-end">Precio unit.</th>
+                            <th class="text-end">Subtotal</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="carrito" class="tw-tabular-nums"></tbody>
+                    <tfoot>
+                        <tr class="fw-bold">
+                            <td colspan="3">Total</td>
+                            <td class="text-end tw-text-lg" id="total">$ 0,00</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div class="tw-mt-auto tw-flex tw-gap-2">
+                    <button id="btn-vaciar" class="btn btn-outline-secondary">Vaciar</button>
+                    <button id="btn-finalizar" class="btn btn-marca btn-lg tw-flex-1" disabled>Finalizar venta</button>
+                </div>
+            </section>
+        </div>
+
+        <!-- Ventas del día -->
+        <section class="tarjeta tw-mt-6">
+            <h2 class="tw-mb-3 tw-text-base tw-font-semibold">Ventas de hoy</h2>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr><th>#</th><th>Hora</th><th>Vendedor</th><th>Detalle</th><th class="text-end">Total</th></tr>
+                    </thead>
+                    <tbody id="ventas-hoy" class="tw-tabular-nums"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/ventas.js"></script>
+</body>
+</html>

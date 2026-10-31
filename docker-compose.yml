@@ -24,6 +24,7 @@ services:
       DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-smartstock}
       DB_USER: ${POSTGRES_USER:-smartstock}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-smartstock}
+      JWT_SECRET: ${JWT_SECRET:-smartstock-secreto-de-desarrollo-cambiar-en-produccion-0123456789abcdef}
     ports:
       - "8080:8080"
     depends_on:
@@ -35,6 +36,7 @@ services:
     container_name: smartstock-analytics
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-smartstock}:${POSTGRES_PASSWORD:-smartstock}@db:5432/${POSTGRES_DB:-smartstock}
+      JWT_SECRET: ${JWT_SECRET:-smartstock-secreto-de-desarrollo-cambiar-en-produccion-0123456789abcdef}
     ports:
       - "8000:8000"
     depends_on:

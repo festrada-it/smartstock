@@ -2,78 +2,14 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartStock - Monitor Predictivo</title>
-
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Tailwind con prefijo "tw-" y sin preflight para que no choque con Bootstrap -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = { prefix: 'tw-', corePlugins: { preflight: false } };
-    </script>
-    <link href="css/styles.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-    <nav class="navbar navbar-dark bg-dark">
-        <div class="container">
-            <span class="navbar-brand fw-bold">SmartStock</span>
-            <div class="navbar-nav flex-row tw-gap-4">
-                <a class="nav-link active" href="index.html">Monitor predictivo</a>
-                <a class="nav-link" href="#" title="Pendiente">Ventas</a>
-                <a class="nav-link" href="#" title="Pendiente">Catálogo</a>
-            </div>
-        </div>
-    </nav>
-
-    <main class="container tw-py-8">
-        <h1 class="h3 tw-mb-6">Monitor predictivo de quiebres de stock</h1>
-
-        <div class="row g-3 tw-mb-6">
-            <div class="col-md-4">
-                <div class="card tw-shadow-sm"><div class="card-body">
-                    <div class="text-muted small">Productos activos</div>
-                    <div id="kpi-total" class="fs-3 fw-bold">-</div>
-                </div></div>
-            </div>
-            <div class="col-md-4">
-                <div class="card tw-shadow-sm"><div class="card-body">
-                    <div class="text-muted small">Quiebre en 7 días o menos</div>
-                    <div id="kpi-criticos" class="fs-3 fw-bold text-danger">-</div>
-                </div></div>
-            </div>
-            <div class="col-md-4">
-                <div class="card tw-shadow-sm"><div class="card-body">
-                    <div class="text-muted small">Bajo stock mínimo</div>
-                    <div id="kpi-bajo-minimo" class="fs-3 fw-bold text-warning">-</div>
-                </div></div>
-            </div>
-        </div>
-
-        <div id="alerta-error" class="alert alert-danger d-none"></div>
-
-        <div class="card tw-shadow-sm">
-            <div class="card-body">
-                <table class="table table-hover align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>SKU</th>
-                            <th>Producto</th>
-                            <th class="text-end">Stock</th>
-                            <th class="text-end">Demanda diaria est.</th>
-                            <th class="text-end">Días hasta quiebre</th>
-                            <th>Fecha estimada</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-predicciones">
-                        <tr><td colspan="6" class="text-center text-muted">Cargando...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </main>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <title>SmartStock</title>
     <script src="js/config.js"></script>
-    <script src="js/dashboard.js"></script>
+    <script src="js/api.js"></script>
+</head>
+<body>
+    <script>
+        const sesion = Sesion.obtener();
+        window.location.replace(sesion ? paginaInicio(sesion.rol) : 'login.html');
+    </script>
 </body>
 </html>

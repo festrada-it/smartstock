@@ -20,7 +20,7 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - run: mvn -B verify
+      - run: chmod +x mvnw && ./mvnw -B verify
 
   analytics-service:
     name: Python - analytics-service
