@@ -36,7 +36,7 @@ import com.smartstock.core.security.JwtService;
 import com.smartstock.core.service.*;
 
 /** Pruebas HTTP con la cadena de seguridad y JWT reales; solo se simula la capa de negocio. */
-@WebMvcTest
+@WebMvcTest(properties = "smartstock.jwt.secret=smartstock-secreto-de-pruebas-0123456789abcdef0123456789abcdef")
 @Import({SecurityConfig.class, JwtAuthFilter.class, JwtService.class})
 class ControllersTest {
 
@@ -91,13 +91,29 @@ class ControllersTest {
     }
 
     @Test
-    void adminCreaCategoriaYActualizaParametro() throws Exception {
+    void adminCreaCategoria() throws Exception {
         var categoria = new com.smartstock.core.model.Categoria();
         categoria.setNombre("Alimentos");
         when(categorias.save(any())).thenReturn(categoria);
         mvc.perform(post("/api/categorias").header("Authorization", token(Rol.ADMIN))
                 .contentType("application/json").content("{\"nombre\":\"Alimentos\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.nombre").value("Alimentos"));
+    }
+
+    @Test
+    void adminActualizaParametroExistente() throws Exception {
+        var parametro = new com.smartstock.core.model.Parametro();
+        parametro.setValor("3");
+        when(parametros.findById("dias_cobertura")).thenReturn(java.util.Optional.of(parametro));
+        when(parametros.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        mvc.perform(put("/api/parametros/dias_cobertura").header("Authorization", token(Rol.ADMIN))
+                .contentType("application/json").content("{\"valor\":\" 7 \"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.valor").value("7"));
+        verify(parametros).save(parametro);
+    }
+
+    @Test
+    void parametroInexistenteDevuelve404() throws Exception {
         mvc.perform(put("/api/parametros/inexistente").header("Authorization", token(Rol.ADMIN))
                 .contentType("application/json").content("{\"valor\":\"7\"}"))
                 .andExpect(status().isNotFound());
@@ -135,7 +151,7 @@ class ControllersTest {
         mvc.perform(get("/api/productos").header("Authorization", "Bearer invalido"))
                 .andExpect(status().isUnauthorized());
         Usuario usuario = usuario(Rol.ADMIN);
-        String vencido = new JwtService("smartstock-secreto-de-desarrollo-cambiar-en-produccion-0123456789abcdef", -1).generar(usuario);
+        String vencido = new JwtService("smartstock-secreto-de-pruebas-0123456789abcdef0123456789abcdef", -1).generar(usuario);
         mvc.perform(get("/api/productos").header("Authorization", "Bearer " + vencido))
                 .andExpect(status().isUnauthorized());
     }
