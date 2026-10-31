@@ -48,6 +48,7 @@ class ControllersTest {
     @MockBean CompraService compras;
     @MockBean UsuarioService usuarios;
     @MockBean ProveedorService proveedores;
+    @MockBean ClienteService clientes;
     @MockBean CategoriaRepository categorias;
     @MockBean ParametroRepository parametros;
 
@@ -56,6 +57,13 @@ class ControllersTest {
                 {"sku":"A1","nombre":"Yerba","precio":10,"costo":5,"stockActual":10,"stockMinimo":1}
                 """;
         return Stream.of(
+                Arguments.of("GET", "/api/clientes", "", 200, true),
+                Arguments.of("GET", "/api/clientes/1", "", 200, true),
+                Arguments.of("GET", "/api/clientes/1/pedidos", "", 200, true),
+                Arguments.of("GET", "/api/clientes/1/productos", "", 200, true),
+                Arguments.of("POST", "/api/clientes", "{\"nombre\":\"Cliente\",\"calidad\":\"BUENA\",\"clasificacion\":4}", 201, false),
+                Arguments.of("PUT", "/api/clientes/1", "{\"nombre\":\"Cliente\",\"calidad\":\"BUENA\",\"clasificacion\":4}", 200, false),
+                Arguments.of("DELETE", "/api/clientes/1", "", 204, false),
                 Arguments.of("GET", "/api/proveedores", "", 200, true),
                 Arguments.of("GET", "/api/proveedores/1", "", 200, true),
                 Arguments.of("GET", "/api/proveedores/1/productos", "", 200, true),
@@ -140,6 +148,16 @@ class ControllersTest {
         mvc.perform(put("/api/parametros/dias_cobertura").header("Authorization", token(Rol.VENDEDOR))
                 .contentType("application/json").content("{\"valor\":\"7\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void clasificacionDeClienteDebeSerEntera() throws Exception {
+        mvc.perform(post("/api/clientes").header("Authorization",token(Rol.ADMIN))
+                .contentType("application/json").content("{\"nombre\":\"Cliente\",\"calidad\":\"BUENA\",\"clasificacion\":2.5}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+        mvc.perform(post("/api/ventas").header("Authorization",token(Rol.VENDEDOR))
+                .contentType("application/json").content("{\"clienteId\":1.9,\"items\":[{\"productoId\":1,\"cantidad\":1}]}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
     }
 
     @Test
