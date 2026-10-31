@@ -30,6 +30,13 @@ public class Producto {
     @JoinColumn(name = "categoria_id")
     private Categoria categoria;
 
+    @Column(length = 100)
+    private String marca;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "proveedor_id")
+    private Proveedor proveedor;
+
     @Column(nullable = false)
     private BigDecimal precio;
 
@@ -70,5 +77,10 @@ public class Producto {
     public void setStockMinimo(Integer stockMinimo) { this.stockMinimo = stockMinimo; }
 
     public Boolean getActivo() { return activo; }
+
+    public String getMarca() { return marca; }
+    public void setMarca(String marca) { this.marca=marca; }
+    public Proveedor getProveedor() { return proveedor; }
+    public void setProveedor(Proveedor proveedor) { this.proveedor=proveedor; }
     public void setActivo(Boolean activo) { this.activo = activo; }
 }

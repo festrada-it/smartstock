@@ -47,6 +47,7 @@ class ControllersTest {
     @MockBean VentaService ventas;
     @MockBean CompraService compras;
     @MockBean UsuarioService usuarios;
+    @MockBean ProveedorService proveedores;
     @MockBean CategoriaRepository categorias;
     @MockBean ParametroRepository parametros;
 
@@ -55,6 +56,12 @@ class ControllersTest {
                 {"sku":"A1","nombre":"Yerba","precio":10,"costo":5,"stockActual":10,"stockMinimo":1}
                 """;
         return Stream.of(
+                Arguments.of("GET", "/api/proveedores", "", 200, true),
+                Arguments.of("GET", "/api/proveedores/1", "", 200, true),
+                Arguments.of("GET", "/api/proveedores/1/productos", "", 200, true),
+                Arguments.of("POST", "/api/proveedores", "{\"nombre\":\"Proveedor\",\"leadTimeDias\":3,\"calidad\":\"BUENA\",\"clasificacion\":4}", 201, false),
+                Arguments.of("PUT", "/api/proveedores/1", "{\"nombre\":\"Proveedor\",\"leadTimeDias\":3,\"calidad\":\"BUENA\",\"clasificacion\":4}", 200, false),
+                Arguments.of("DELETE", "/api/proveedores/1", "", 204, false),
                 Arguments.of("GET", "/api/productos", "", 200, true),
                 Arguments.of("GET", "/api/productos/1", "", 200, true),
                 Arguments.of("POST", "/api/productos", producto, 201, false),
