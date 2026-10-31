@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>SmartStock</title>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+</head>
+<body>
+    <script>
+        const sesion = Sesion.obtener();
+        window.location.replace(sesion ? paginaInicio(sesion.rol) : 'login.html');
+    </script>
+</body>
+</html>

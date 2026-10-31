@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartStock - Productos y stock</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/tailwind-config.js"></script>
+    <link href="css/styles.css" rel="stylesheet">
+</head>
+<body class="tw-bg-slate-50">
+<div class="tw-flex">
+    <aside id="sidebar" class="tw-w-64 tw-shrink-0 tw-border-r tw-bg-white"></aside>
+
+    <main class="tw-flex-1 tw-p-8">
+        <div class="tw-mb-6 tw-flex tw-items-center tw-justify-between">
+            <h1 class="tw-m-0 tw-text-2xl tw-font-bold tw-text-slate-800">Catálogo e inventario</h1>
+            <button id="btn-nuevo" class="btn btn-marca d-none">+ Nuevo producto</button>
+        </div>
+        <div id="mensajes"></div>
+
+        <div class="tarjeta">
+            <div class="tw-mb-4 tw-flex tw-flex-wrap tw-gap-3">
+                <input id="filtro-texto" type="search" class="form-control tw-max-w-xs" placeholder="Buscar por nombre o SKU">
+                <select id="filtro-categoria" class="form-select tw-max-w-[14rem]">
+                    <option value="">Todas las categorías</option>
+                </select>
+                <select id="filtro-estado" class="form-select tw-max-w-[14rem]">
+                    <option value="">Todos los estados</option>
+                    <option value="SIN_STOCK">Sin stock</option>
+                    <option value="BAJO_MINIMO">Bajo mínimo</option>
+                    <option value="OK">OK</option>
+                </select>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>SKU</th>
+                            <th>Producto</th>
+                            <th>Categoría</th>
+                            <th class="text-end">Precio</th>
+                            <th class="text-end solo-admin d-none">Costo</th>
+                            <th class="text-end">Stock</th>
+                            <th class="text-end">Mínimo</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-productos" class="tw-tabular-nums">
+                        <tr><td colspan="9" class="text-center text-muted">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal alta / edición de producto (solo Admin) -->
+<div class="modal fade" id="modal-producto" tabindex="-1">
+    <div class="modal-dialog">
+        <form id="form-producto" class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="titulo-modal-producto">Nuevo producto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="producto-id">
+                <div class="row g-3">
+                    <div class="col-4">
+                        <label class="form-label" for="producto-sku">SKU</label>
+                        <input id="producto-sku" class="form-control" required maxlength="50">
+                    </div>
+                    <div class="col-8">
+                        <label class="form-label" for="producto-nombre">Nombre</label>
+                        <input id="producto-nombre" class="form-control" required maxlength="150">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="producto-categoria">Categoría</label>
+                        <select id="producto-categoria" class="form-select"><option value="">Sin categoría</option></select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="producto-precio">Precio de venta</label>
+                        <input id="producto-precio" type="number" min="0" step="0.01" class="form-control" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="producto-costo">Costo</label>
+                        <input id="producto-costo" type="number" min="0" step="0.01" class="form-control" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="producto-stock">Stock actual</label>
+                        <input id="producto-stock" type="number" min="0" step="1" class="form-control" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="producto-minimo">Stock mínimo (umbral de seguridad)</label>
+                        <input id="producto-minimo" type="number" min="0" step="1" class="form-control" required>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-marca">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal ingreso de mercadería (Admin y Vendedor) -->
+<div class="modal fade" id="modal-ingreso" tabindex="-1">
+    <div class="modal-dialog">
+        <form id="form-ingreso" class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ingreso de mercadería</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="ingreso-producto-id">
+                <p class="tw-font-semibold" id="ingreso-producto-nombre"></p>
+                <div class="row g-3">
+                    <div class="col-6">
+                        <label class="form-label" for="ingreso-cantidad">Cantidad recibida</label>
+                        <input id="ingreso-cantidad" type="number" min="1" step="1" class="form-control" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="ingreso-costo">Costo unitario (opcional)</label>
+                        <input id="ingreso-costo" type="number" min="0" step="0.01" class="form-control">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="ingreso-observacion">Observación</label>
+                        <input id="ingreso-observacion" class="form-control" maxlength="255" placeholder="Ej: remito 0001-123, proveedor X">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-marca">Registrar ingreso</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/productos.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: core-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smartstock}
+    username: ${DB_USER:smartstock}
+    password: ${DB_PASSWORD:smartstock}
+  jpa:
+    hibernate:
+      # El esquema lo crean los scripts de database/init, Hibernate solo lo valida
+      ddl-auto: validate
+    open-in-view: false
+
+smartstock:
+  jwt:
+    # Debe ser el mismo secreto que usa analytics-service para validar los tokens
+    secret: ${JWT_SECRET:smartstock-secreto-de-desarrollo-cambiar-en-produccion-0123456789abcdef}
+    expiracion-minutos: ${JWT_EXPIRACION_MINUTOS:480}
+  cors:
+    origenes: ${CORS_ORIGENES:http://localhost:3000,http://127.0.0.1:5500,http://localhost:5500}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

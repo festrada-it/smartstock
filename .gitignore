@@ -1,24 +1,40 @@
-# Compiled class file
-*.class
-
-# Log file
+# ---------- General ----------
+.env
 *.log
+.DS_Store
+Thumbs.db
 
-# BlueJ files
-*.ctxt
+# ---------- IDEs ----------
+.idea/
+*.iml
+.vscode/
+*.swp
 
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
+# ---------- Java / Maven (core-service) ----------
+target/
+*.class
 *.jar
 *.war
-*.nar
 *.ear
+hs_err_pid*
+replay_pid*
+!.mvn/wrapper/maven-wrapper.jar
+
+# ---------- Python (analytics-service) ----------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+*.pkl
+*.joblib
+
+# ---------- Node / Front-end ----------
+node_modules/
+dist/
+
+# ---------- Archivos comprimidos ----------
 *.zip
 *.tar.gz
 *.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
