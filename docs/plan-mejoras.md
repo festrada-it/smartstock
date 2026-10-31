@@ -1,6 +1,6 @@
 # Plan de mejoras — SmartStock como distribuidor mayorista
 
-> Estado: **aprobado** (31-10-2026, D1 a D7 con la opción recomendada). Basado en `develop` @ `d4d588f` (incluye #5 tests de controllers, #6 historial de movimientos y #7 anulación de ventas).
+> Estado: **aprobado** (31-10-2026, D1 a D7 con la opción recomendada). **Objetivo actualizado el 31-10: todo para el 4-11 (ver §9).** Basado en `develop` @ `d4d588f` (incluye #5 tests de controllers, #6 historial de movimientos y #7 anulación de ventas).
 
 ## 1. Nuevo escenario
 
@@ -230,27 +230,27 @@ Una tarea = un issue = una rama = una PR hacia `develop`. Cuando una tarea toca 
 | **3.1** | Clientes: script `06`, CRUD, historial y productos del cliente, `clienteId` en ventas, tests | core + db | Nicolas | `feature/core-clientes` | 2.1 |
 | **3.2** | Pantalla Clientes y selector de cliente en Ventas | front | Florencia | `feature/front-clientes` | 3.1 |
 | 4.1 | Lotes: script `07`, ingreso de mercadería crea lote, `/productos/{id}/lotes`, `proximoVencimiento` | core + db | Nicolas | `feature/core-lotes` | 3.1, #8 |
-| 4.2 | FEFO en ventas y devolución a lotes al anular, con tests de integración | core | Nicolas | `feature/core-fefo` | 4.1 |
+| 4.2 | FEFO en ventas y pedidos (enchufa en la confirmación de 5.1) y devolución a lotes al anular o cancelar, con tests de integración | core | Nicolas | `feature/core-fefo` | 4.1, 5.1 |
 | 4.3 | Endpoint `/vencimientos` con N por grupo | analytics | Daniel | `feature/analytics-vencimientos` | 4.1 |
 | 4.4 | Ingreso de mercadería con lote, columna de vencimiento y detalle de lotes | front | Florencia | `feature/front-lotes` | 4.1 |
-| 5.1 | Pedidos: script `08`, cabecera, descuento, número de orden, estados y confirmar | core + db | Nicolas | `feature/core-pedidos` | 4.2 |
+| 5.1 | Pedidos: script `08`, cabecera, descuento, número de orden, estados y confirmar | core + db | Nicolas | `feature/core-pedidos` | 3.1 (FEFO se suma en 4.2) |
 | 5.2 | Enviar, entregar con factura y cancelar (reemplaza anular) | core | Nicolas | `feature/core-pedidos-entrega` | 5.1 |
 | 5.3 | Demanda e ingresos según el estado del pedido y el total con descuento | analytics | Daniel | `feature/analytics-pedidos` | 5.1 |
 | 5.4 | Pantalla Pedidos (reemplaza Ventas, incluye #10) | front | Florencia | `feature/front-pedidos` | 5.2 |
-| 6.1 | Rotación por producto y por grupo | analytics | Daniel | `feature/analytics-rotacion` | 2.1, 5.3 |
+| 6.1 | Rotación por producto y por grupo | analytics | Daniel | `feature/analytics-rotacion` | 1.1, 2.1 |
 | 6.2 | Rotación en el monitor | front | Florencia | `feature/front-rotacion` | 6.1 |
-| 7.1 | Lead time y punto de reposición; script `09` | analytics + db | Daniel | `feature/analytics-lead-time` | 1.1, 5.3 |
+| 7.1 | Lead time y punto de reposición; script `09` | analytics + db | Daniel | `feature/analytics-lead-time` | 1.1, 2.1 |
 | 7.2 | Punto de reposición y "comprar ahora" en el monitor | front | Florencia | `feature/front-reposicion` | 7.1 |
 | 8.1 | `/alertas/panel` unificado | analytics | Daniel | `feature/analytics-panel-alertas` | 4.3, 6.1, 7.1 |
 | 8.2 | Panel de alertas en el dashboard | front | Florencia | `feature/front-panel-alertas` | 8.1 |
 
-**Para el 4-11 (en negrita):** 0.1, 0.2, 1.1, 1.2, 2.1, 2.2, 3.1 y 3.2. Son 8 PRs en 4 días, cada una con 1 aprobación. Las de front se pueden empezar con datos de ejemplo mientras se revisa la de core.
+**Para el 4-11: todas** (cambio del 31-10, ver §9). Las negritas marcan las tareas que ya estaban comprometidas antes del cambio.
 
 **Criterios de aceptación comunes a todas:**
 - Tests de la lógica nueva (JUnit o pytest); los existentes siguen pasando.
 - CI en verde.
 - Rutas nuevas agregadas a `ControllersTest`.
-- Contrato documentado en `docs/`.
+- Contrato documentado en `docs/` **en el primer commit de la PR** (`docs(<componente>): …`), para que quien depende arranque con datos de ejemplo sin esperar el merge.
 - `docker compose down -v && docker compose up --build` levanta sin errores.
 - `docs/PLAN.md` actualizado al cerrar el paso.
 
@@ -259,3 +259,43 @@ Una tarea = un issue = una rama = una PR hacia `develop`. Cuando una tarea toca 
 - **Migración del paso 4:** pasar el stock actual a lotes iniciales necesita fechas de vencimiento estimadas. Se documenta como "lote de apertura".
 - **Bases existentes:** cada script nuevo obliga a migrar o recrear la base. Se avisa en cada PR y en la minuta.
 - **Contratos que cambian:** `POST /compras` (paso 4), `POST /ventas` → `/pedidos` (paso 5) y la anulación → cancelar (paso 5). Las PRs de front van inmediatamente después de las de core.
+- **Cuello de botella en core:** casi todo el camino crítico pasa por core-service (una sola persona). Ver §9.
+
+## 9. Objetivo 4-11 y camino crítico
+
+**Objetivo (31-10):** los pasos 1 a 8 completos para el **miércoles 4-11**. La entrega final (12-11) queda para ajustes según la devolución del profe. Todos los issues abiertos están en el milestone [Entrega 4-11](https://github.com/festrada-it/smartstock/milestone/1).
+
+**Regla:** ninguna tarea se frena por fechas. Quien depende de otra tarea:
+1. arranca con el contrato publicado y datos de ejemplo;
+2. conecta cuando se mergea.
+
+Por eso el contrato va en el primer commit de cada PR.
+
+**Corte del lunes 2-11 a la noche:** si algo no llega, se prioriza la demo de punta a punta: **login → producto → proveedor → cliente → pedido → alertas**. Lotes/FEFO, rotación y vencimientos son lo primero que se posterga.
+
+### Cambios de orden respecto del plan original
+- **Pedidos (5.1, 5.2) antes que lotes (4.1, 4.2).** El pedido está en la demo y los lotes no.
+  - 5.1 confirma descontando stock con el bloqueo de productos que ya existe.
+  - 4.2 después enchufa FEFO en esa confirmación.
+  - Los scripts conservan su número: `07` lotes y `08` pedidos. En una base nueva corren en orden; en una existente se aplica el que falte.
+- **Rotación (6.1) y lead time (7.1) ya no esperan a 5.3.** Usan las ventas actuales, que excluyen las anuladas, y 5.3 las adapta a los estados de pedido (#28, #30).
+
+### Merges que destraban al resto
+| Orden | Qué | Destraba |
+|-------|-----|----------|
+| 1 | **#35** proveedores (aprobada) | #36, front Proveedores (#39), lead time en analytics (#42) |
+| 2 | **#36** producto y grupos (faltan 2 ajustes y rebase) | #37, front Catálogo y Grupos (#17), rotación (#43), stock mínimo en alertas |
+| 3 | **#37** clientes (aprobada, rebase después de #36) | front Clientes (#19), pedidos (#24) |
+| 4 | **Contrato de pedidos** (`docs/API-PEDIDOS.md`, primer commit de #24) | front Pedidos (#27), analytics de pedidos (#26) |
+| 5 | **#42 integrada** (`/api/predicciones` con `comprar_ahora`) | front Reposición (#31), panel de alertas (#44) |
+| 6 | **#24 → #25** pedidos | demo completa del flujo de venta |
+| 7 | **Contrato de lotes** (primer commit de #20) → #20 → #21 | vencimientos (#22, #41), front Lotes (#23) |
+
+### En paralelo desde hoy
+| Quién | Ahora | Con contrato y datos de ejemplo | Al mergear la dependencia |
+|-------|-------|--------------------------------|---------------------------|
+| **Nicolas** | Mergear #35. Ajustes y rebase de #36. Rebase de #37. Publicar los contratos de pedidos (#24) y lotes (#20) | — | #24 → #25 → #20 → #21. Las chicas (#13 en #38, #8, #9, #40) en los huecos o si espera revisión |
+| **Marcelo** | Mergear #41 como avance. Ajustar el contrato de #42 (`margen_dias`, `proveedor`) | Integración de #42 contra el esquema de #35. Rotación (#43) contra el de #36. Panel (#44) | Conectar #42 al mergear #35 (script `09`, `db.py`, `/api/predicciones`). #26 con el contrato de #24. #22 con el de #20 |
+| **Florencia** | Catálogo y Grupos (#17, contrato de #36). Clientes (#19, contrato de #37) | Pedidos (#27) con los campos de #24. Panel de alertas (#33, contrato de #44). Reposición (#31, contrato de #42). Rotación (#29). Lotes (#23) | Conectar #39 al mergear #35; después #17, #19, etc. a medida que entran |
+
+**Revisiones:** cada PR necesita 1 aprobación de otra persona. Para no trabar el camino crítico, las PRs de core se revisan en el día.
