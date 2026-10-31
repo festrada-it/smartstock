@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartStock - Proveedores</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/tailwind-config.js"></script>
+    <link href="css/styles.css" rel="stylesheet">
+</head>
+<body class="tw-bg-slate-50">
+<div class="tw-flex">
+    <aside id="sidebar" class="tw-w-64 tw-shrink-0 tw-border-r tw-bg-white"></aside>
+
+    <main class="tw-flex-1 tw-p-8">
+        <div class="tw-mb-6 tw-flex tw-items-center tw-justify-between">
+            <h1 class="tw-m-0 tw-text-2xl tw-font-bold tw-text-slate-800">Proveedores</h1>
+            <button id="btn-nuevo" class="btn btn-marca d-none">+ Nuevo proveedor</button>
+        </div>
+        <div id="aviso-ejemplo" class="alert alert-warning d-none">
+            <strong>Datos de ejemplo.</strong> El servicio de proveedores todavía no está disponible:
+            los cambios se guardan solo en esta pestaña y se pierden al recargar.
+        </div>
+        <div id="mensajes"></div>
+
+        <div class="tarjeta">
+            <div class="tw-mb-4 tw-flex tw-flex-wrap tw-gap-3">
+                <input id="filtro-texto" type="search" class="form-control tw-max-w-xs" placeholder="Buscar por nombre">
+                <select id="filtro-calidad" class="form-select tw-max-w-[14rem]">
+                    <option value="">Todas las calidades</option>
+                    <option value="BUENA">Buena</option>
+                    <option value="REGULAR">Regular</option>
+                    <option value="MALA">Mala</option>
+                </select>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Proveedor</th>
+                            <th>Teléfono</th>
+                            <th class="text-end">Entrega promedio</th>
+                            <th>Calidad</th>
+                            <th>Clasificación</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-proveedores" class="tw-tabular-nums">
+                        <tr><td colspan="6" class="text-center text-muted">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal detalle: datos del proveedor y productos / marcas que abastece -->
+<div class="modal fade" id="modal-detalle" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detalle-nombre"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row tw-mb-4" id="detalle-datos"></dl>
+                <h6 class="tw-font-semibold">Marcas</h6>
+                <div id="detalle-marcas" class="tw-mb-4 tw-flex tw-flex-wrap tw-gap-2"></div>
+                <h6 class="tw-font-semibold">Productos que abastece</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Producto</th>
+                                <th>Marca</th>
+                                <th>Grupo</th>
+                                <th class="text-end">Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detalle-productos" class="tw-tabular-nums"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal alta / edición de proveedor (solo Admin) -->
+<div class="modal fade" id="modal-proveedor" tabindex="-1">
+    <div class="modal-dialog">
+        <form id="form-proveedor" class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="titulo-modal-proveedor">Nuevo proveedor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="proveedor-id">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label" for="proveedor-nombre">Nombre</label>
+                        <input id="proveedor-nombre" class="form-control" required maxlength="150">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="proveedor-direccion">Dirección</label>
+                        <input id="proveedor-direccion" class="form-control" maxlength="200">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="proveedor-telefono">Teléfono</label>
+                        <input id="proveedor-telefono" type="tel" class="form-control" maxlength="50">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="proveedor-lead-time">Días de entrega promedio</label>
+                        <input id="proveedor-lead-time" type="number" min="1" max="365" step="1" class="form-control" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="proveedor-calidad">Calidad</label>
+                        <select id="proveedor-calidad" class="form-select" required>
+                            <option value="BUENA">Buena</option>
+                            <option value="REGULAR">Regular</option>
+                            <option value="MALA">Mala</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="proveedor-clasificacion">Clasificación</label>
+                        <select id="proveedor-clasificacion" class="form-select" required>
+                            <option value="5">★★★★★ (5)</option>
+                            <option value="4">★★★★☆ (4)</option>
+                            <option value="3">★★★☆☆ (3)</option>
+                            <option value="2">★★☆☆☆ (2)</option>
+                            <option value="1">★☆☆☆☆ (1)</option>
+                        </select>
+                    </div>
+                </div>
+                <p class="tw-mb-0 tw-mt-3 tw-text-sm tw-text-slate-500">
+                    Cuanto peor la clasificación o más largos los días de entrega, antes se va a avisar para reponer.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-marca">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/datos-ejemplo-proveedores.js"></script>
+<script src="js/proveedores.js"></script>
+</body>
+</html>
