@@ -7,15 +7,14 @@ const CALIDADES = {
     MALA: { texto: 'Mala', clase: 'text-bg-danger' },
 };
 
-// Misma interfaz para la API real y para los datos de ejemplo (ver config.js).
-const ProveedoresCore = {
+// API de core-service, contrato en docs/API-PROVEEDORES.md.
+const fuente = {
     listar: () => coreApi('/proveedores'),
     productos: id => coreApi(`/proveedores/${id}/productos`),
     crear: datos => coreApi('/proveedores', { method: 'POST', body: datos }),
     actualizar: (id, datos) => coreApi(`/proveedores/${id}`, { method: 'PUT', body: datos }),
     eliminar: id => coreApi(`/proveedores/${id}`, { method: 'DELETE' }),
 };
-const fuente = CONFIG.DATOS_EJEMPLO?.proveedores ? ProveedoresEjemplo : ProveedoresCore;
 
 let proveedores = [];
 let modalProveedor;
@@ -26,7 +25,6 @@ async function iniciar() {
     modalProveedor = new bootstrap.Modal('#modal-proveedor');
     modalDetalle = new bootstrap.Modal('#modal-detalle');
 
-    if (fuente === ProveedoresEjemplo) document.getElementById('aviso-ejemplo').classList.remove('d-none');
     if (esAdmin) document.getElementById('btn-nuevo').classList.remove('d-none');
 
     document.getElementById('btn-nuevo').addEventListener('click', () => abrirModalProveedor());
