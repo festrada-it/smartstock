@@ -16,7 +16,7 @@ Publicado antes de implementar. Depende de proveedores #14 y productos/grupos
 POST/PUT:
 
 ```json
-{"nombre":"Día Express","direccion":"Av. Corrientes 1800","telefono":"1145555000","calidad":"BUENA","clasificacion":4}
+{"nombre":"Día Express","direccion":"Av. Corrientes 1800","telefono":"1145555000","calidad":"BUENA","clasificacion":5}
 ```
 
 Respuesta: los mismos campos más `id` y `activo`. Nombre obligatorio, hasta

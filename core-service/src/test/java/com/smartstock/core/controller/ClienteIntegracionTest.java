@@ -72,6 +72,18 @@ class ClienteIntegracionTest {
         datos.put("clasificacion",3);datos.put("nombre"," ");
         assertEquals(400,pedir(HttpMethod.POST,"/api/clientes",datos,Rol.ADMIN).getStatusCode().value());
     }
+    @Test void ventaSinClienteSigueFuncionandoYClienteInactivoNoDescuentaStock() {
+        producto();
+        var sinCliente=pedir(HttpMethod.POST,"/api/ventas",
+                Map.of("items",List.of(Map.of("productoId",productoId,"cantidad",1))),Rol.VENDEDOR);
+        assertEquals(201,sinCliente.getStatusCode().value());
+        assertTrue(sinCliente.getBody().get("clienteId").isNull());
+        assertTrue(sinCliente.getBody().get("cliente").isNull());
+        crear();
+        assertEquals(204,pedir(HttpMethod.DELETE,"/api/clientes/"+id,null,Rol.ADMIN).getStatusCode().value());
+        assertEquals(404,venta(id,1).getStatusCode().value());
+        assertEquals(9,db.queryForObject("SELECT stock_actual FROM productos WHERE id=?",Integer.class,productoId));
+    }
     @Test void validaPaginacionYClienteInexistenteSinDescontarStock() {
         crear();producto();
         for(String query:List.of("page=-1","size=0","size=101","size=abc","page=2147483647&size=100")) {
