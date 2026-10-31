@@ -14,17 +14,27 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.smartstock.core.dto.VentaRequest;
 import com.smartstock.core.exception.NegocioException;
+import com.smartstock.core.security.JwtService;
+import com.smartstock.core.model.Usuario;
+import com.smartstock.core.model.Rol;
 
 /** Requiere PostgreSQL con database/init aplicado; CI lo ejecuta automáticamente. */
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @EnabledIfEnvironmentVariable(named = "SMARTSTOCK_INTEGRACION", matches = "true")
 class AnulacionIntegracionTest {
     @Autowired VentaService servicio;
     @Autowired JdbcTemplate db;
+    @Autowired TestRestTemplate http;
+    @Autowired JwtService jwt;
     private Long usuarioId;
     private Long primero;
     private Long segundo;
@@ -50,6 +60,19 @@ class AnulacionIntegracionTest {
         db.update("DELETE FROM ventas WHERE usuario_id = ?", usuarioId);
         db.update("DELETE FROM productos WHERE id IN (?,?)", primero, segundo);
         db.update("DELETE FROM usuarios WHERE id = ?", usuarioId);
+    }
+
+    @Test
+    void httpRealDevuelve403AlVendedorSinRedirigirAErrorNoAutenticado() {
+        Usuario vendedor = new Usuario();
+        vendedor.setEmail(email);
+        vendedor.setNombre("Vendedor de prueba");
+        vendedor.setRol(Rol.VENDEDOR);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(jwt.generar(vendedor));
+        var respuesta = http.exchange("/api/ventas/9223372036854775807/anular",
+                HttpMethod.POST, new HttpEntity<Void>(headers), Void.class);
+        assertEquals(HttpStatus.FORBIDDEN, respuesta.getStatusCode());
     }
 
     @Test

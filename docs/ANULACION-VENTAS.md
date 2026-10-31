@@ -42,8 +42,9 @@ versión: Hibernate valida la columna y analytics la necesita para sus consultas
 `cd core-service && sh mvnw -B verify` ejecuta tests unitarios y MVC.
 Para incluir `AnulacionIntegracionTest`, habilitar `SMARTSTOCK_INTEGRACION=true`
 con una base PostgreSQL de pruebas inicializada y `DB_URL`, `DB_USER`,
-`DB_PASSWORD` configurados. Verifica concurrencia, rollback, productos inactivos
-y productos repetidos en una venta. No ejecutar contra una base de producción.
+`DB_PASSWORD` configurados. Verifica concurrencia, rollback, productos inactivos,
+productos repetidos y el 403 de permisos mediante un servidor HTTP real.
+No ejecutar contra una base de producción.
 
 `cd analytics-service && pytest -v` incluye las consultas reales cuando
 `SMARTSTOCK_INTEGRACION=true` y `DATABASE_URL` apunta a PostgreSQL de pruebas.
