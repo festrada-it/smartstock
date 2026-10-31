@@ -122,7 +122,7 @@ async function abrirDetalle(proveedor) {
     const marcas = document.getElementById('detalle-marcas');
     const cuerpo = document.getElementById('detalle-productos');
     marcas.innerHTML = '';
-    cuerpo.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Cargando...</td></tr>';
+    cuerpo.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Cargando...</td></tr>';
     modalDetalle.show();
 
     try {
@@ -137,12 +137,10 @@ async function abrirDetalle(proveedor) {
                     <td class="tw-font-mono">${escaparHtml(p.sku)}</td>
                     <td>${escaparHtml(p.nombre)}</td>
                     <td>${escaparHtml(p.marca || '-')}</td>
-                    <td>${escaparHtml(p.categoriaNombre || '-')}</td>
-                    <td class="text-end ${p.stockActual < p.stockMinimo ? 'tw-font-semibold tw-text-amber-700' : ''}">${p.stockActual}</td>
                 </tr>`).join('')
-            : '<tr><td colspan="5" class="text-center text-muted">Este proveedor todavía no abastece productos.</td></tr>';
+            : '<tr><td colspan="3" class="text-center text-muted">Este proveedor todavía no abastece productos.</td></tr>';
     } catch (e) {
-        cuerpo.innerHTML = `<tr><td colspan="5" class="text-center text-danger">${escaparHtml(e.message)}</td></tr>`;
+        cuerpo.innerHTML = `<tr><td colspan="3" class="text-center text-danger">${escaparHtml(e.message)}</td></tr>`;
     }
 }
 

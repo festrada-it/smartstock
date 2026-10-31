@@ -4,30 +4,30 @@
 // Borrar este archivo cuando se mergee #14.
 
 const ProveedoresEjemplo = (() => {
+    // Copia del seed de database/init/04_proveedores.sql (#35).
     let proveedores = [
-        { id: 1, nombre: 'Distribuidora Andina S.A.', direccion: 'Av. Juan B. Justo 4500, CABA', telefono: '11 4555-1200', leadTimeDias: 3, calidad: 'BUENA', clasificacion: 5, activo: true },
-        { id: 2, nombre: 'Mayorista El Puente', direccion: 'Ruta 8 km 52, Pilar', telefono: '230 442-8800', leadTimeDias: 7, calidad: 'REGULAR', clasificacion: 3, activo: true },
-        { id: 3, nombre: 'Bebidas del Oeste SRL', direccion: 'Av. Rivadavia 22100, Ituzaingó', telefono: '11 4623-0450', leadTimeDias: 4, calidad: 'BUENA', clasificacion: 4, activo: true },
-        { id: 4, nombre: 'Química Sur', direccion: 'Hipólito Yrigoyen 3300, Lanús', telefono: '11 4241-7788', leadTimeDias: 12, calidad: 'MALA', clasificacion: 2, activo: true },
+        { id: 1, nombre: 'Distribuidora del Sur', direccion: 'Av. San Martín 1200', telefono: '1145551000', leadTimeDias: 7, calidad: 'BUENA', clasificacion: 5, activo: true },
+        { id: 2, nombre: 'Bebidas del Plata', direccion: 'Av. Rivadavia 5400', telefono: '1145552000', leadTimeDias: 3, calidad: 'BUENA', clasificacion: 4, activo: true },
+        { id: 3, nombre: 'Limpieza Central', direccion: 'Av. Independencia 1800', telefono: '1145553000', leadTimeDias: 10, calidad: 'REGULAR', clasificacion: 2, activo: true },
+        { id: 4, nombre: 'Alimentos Frescos Norte', direccion: 'Av. Cabildo 3200', telefono: '1145554000', leadTimeDias: 2, calidad: 'MALA', clasificacion: 1, activo: true },
     ];
     let siguienteId = 5;
 
+    // Mismo contrato que GET /api/proveedores/{id}/productos: {id, sku, nombre, marca}.
     const productosPorProveedor = {
         1: [
-            { id: 1, sku: 'ALM-001', nombre: 'Yerba mate 1kg', marca: 'Playadito', categoriaNombre: 'Almacén', stockActual: 120, stockMinimo: 30 },
-            { id: 3, sku: 'ALM-003', nombre: 'Arroz largo fino 1kg', marca: 'Gallo', categoriaNombre: 'Almacén', stockActual: 60, stockMinimo: 30 },
+            { id: 1, sku: 'ALM-001', nombre: 'Yerba mate 1kg', marca: 'Playadito' },
+            { id: 2, sku: 'ALM-002', nombre: 'Fideos tirabuzón 500g', marca: 'Matarazzo' },
+            { id: 3, sku: 'ALM-003', nombre: 'Arroz largo fino 1kg', marca: 'Gallo' },
+            { id: 4, sku: 'ALM-004', nombre: 'Harina 000 1kg', marca: 'Pureza' },
         ],
         2: [
-            { id: 2, sku: 'ALM-002', nombre: 'Fideos tirabuzón 500g', marca: 'Matarazzo', categoriaNombre: 'Almacén', stockActual: 35, stockMinimo: 30 },
-            { id: 4, sku: 'ALM-004', nombre: 'Harina 000 1kg', marca: 'Pureza', categoriaNombre: 'Almacén', stockActual: 18, stockMinimo: 30 },
+            { id: 5, sku: 'BEB-001', nombre: 'Agua mineral 2L', marca: 'Villavicencio' },
+            { id: 6, sku: 'BEB-002', nombre: 'Gaseosa cola 1.5L', marca: 'Coca-Cola' },
         ],
         3: [
-            { id: 5, sku: 'BEB-001', nombre: 'Agua mineral 2L', marca: 'Villavicencio', categoriaNombre: 'Bebidas', stockActual: 25, stockMinimo: 30 },
-            { id: 6, sku: 'BEB-002', nombre: 'Gaseosa cola 1.5L', marca: 'Coca-Cola', categoriaNombre: 'Bebidas', stockActual: 80, stockMinimo: 30 },
-        ],
-        4: [
-            { id: 7, sku: 'LIM-001', nombre: 'Lavandina 1L', marca: 'Ayudín', categoriaNombre: 'Limpieza', stockActual: 40, stockMinimo: 30 },
-            { id: 8, sku: 'LIM-002', nombre: 'Detergente 750ml', marca: 'Magistral', categoriaNombre: 'Limpieza', stockActual: 12, stockMinimo: 30 },
+            { id: 7, sku: 'LIM-001', nombre: 'Lavandina 1L', marca: 'Ayudín' },
+            { id: 8, sku: 'LIM-002', nombre: 'Detergente 750ml', marca: 'Magistral' },
         ],
     };
 
