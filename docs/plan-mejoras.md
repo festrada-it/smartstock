@@ -191,7 +191,7 @@ erDiagram
 
 - **Total del pedido:** suma de (cantidad × precio unitario) × (1 − descuento / 100), redondeado a 2 decimales. Si el descuento no está entre 0 y 20, la respuesta es 400.
 - **FEFO:** al confirmar, se bloquean los productos en orden de id y, dentro de cada producto, los lotes con disponible > 0 ordenados por vencimiento, con los NULL (sin vencimiento) al final, y por id. Cada parte consumida queda en `consumos_lote`. Si falta stock se hace rollback de todo.
-- **Stock mínimo:** no bloquea la venta. Si al confirmar un producto queda debajo del mínimo, la respuesta incluye `advertencias` y el producto aparece en el panel de alertas.
+- **Stock mínimo:** no bloquea la venta. El producto está "debajo del mínimo" cuando `stock ≤ mínimo`; vale para el estado del catálogo (`BAJO_MINIMO`), la criticidad de analytics y la alerta STOCK_MINIMO del panel. Si al confirmar un pedido un producto llega al mínimo o queda debajo, la respuesta incluye `advertencias` y el producto aparece en el panel de alertas.
 - **Vencimiento:** un lote entra en alerta si vence dentro de los N días de su grupo. Criticidad ALTA si ya venció o faltan ≤ 7 días, MEDIA si faltan ≤ N/2 y BAJA en el resto.
 - **Rotación:** unidades vendidas en 30 días / stock promedio de esos 30 días (reconstruido con `stock_historico`). Si es ≥ umbral, el producto está sano. Si es menor, hay alerta de baja rotación con sugerencia escalonada: menor a la mitad del umbral, "no recomprar / promocionar"; si no, "comprar menos". Con stock promedio 0 no se calcula.
 - **Punto de reposición:** demanda diaria proyectada × (lead time del proveedor + margen) + stock mínimo.
