@@ -46,7 +46,7 @@ def ventas_diarias(dias: int, producto_id: int | None = None) -> pd.DataFrame:
         SELECT DATE(v.fecha) AS dia, d.producto_id, SUM(d.cantidad) AS unidades
         FROM detalle_venta d
         JOIN ventas v ON v.id = d.venta_id
-        WHERE v.fecha >= :desde AND v.fecha < :hoy {filtro}
+        WHERE v.fecha >= :desde AND v.fecha < :hoy AND NOT v.anulada {filtro}
         GROUP BY DATE(v.fecha), d.producto_id
     """)
     with engine.connect() as conn:
@@ -88,7 +88,7 @@ def resumen_ventas(dias: int) -> dict:
                 SELECT COALESCE(SUM(d.cantidad), 0) AS unidades,
                        COALESCE(SUM(d.cantidad * d.precio_unitario), 0) AS ingresos
                 FROM detalle_venta d JOIN ventas v ON v.id = d.venta_id
-                WHERE v.fecha >= :desde
+                WHERE v.fecha >= :desde AND NOT v.anulada
             """),
             {"desde": date.today() - timedelta(days=dias)},
         ).one()
