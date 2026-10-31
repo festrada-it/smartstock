@@ -1,12 +1,6 @@
 const sesion = Sesion.requerir(['ADMIN', 'VENDEDOR']);
 const esAdmin = Sesion.esAdmin();
 
-const CALIDADES = {
-    BUENA: { texto: 'Buena', clase: 'text-bg-success' },
-    REGULAR: { texto: 'Regular', clase: 'text-bg-warning' },
-    MALA: { texto: 'Mala', clase: 'text-bg-danger' },
-};
-
 // API de core-service, contrato en docs/API-PROVEEDORES.md.
 const fuente = {
     listar: () => coreApi('/proveedores'),
@@ -44,24 +38,6 @@ async function cargarProveedores() {
             '<tr><td colspan="6" class="text-center text-muted">No se pudieron cargar los proveedores.</td></tr>';
         mostrarMensaje(`No se pudieron cargar los proveedores: ${e.message}`, 'danger');
     }
-}
-
-/** Clasificación de 1 a 5 como estrellas, con texto alternativo para lectores de pantalla. */
-function estrellas(clasificacion) {
-    const llenas = '★'.repeat(clasificacion);
-    const vacias = '☆'.repeat(5 - clasificacion);
-    return `<span class="tw-whitespace-nowrap tw-text-amber-500" role="img" aria-label="${clasificacion} de 5 estrellas"
-                  title="${clasificacion} de 5">${llenas}<span class="tw-text-slate-300">${vacias}</span></span>`;
-}
-
-function badgeCalidad(calidad) {
-    const c = CALIDADES[calidad] ?? { texto: escaparHtml(calidad), clase: 'text-bg-secondary' };
-    return `<span class="badge ${c.clase}">${c.texto}</span>`;
-}
-
-/** Proveedor al que conviene pedirle con más anticipación (mismo criterio que usará analytics, #30). */
-function esDeRiesgo(proveedor) {
-    return proveedor.clasificacion <= 2 || proveedor.calidad === 'MALA';
 }
 
 function renderTabla() {
