@@ -105,9 +105,16 @@ public class ProductoService {
         producto.setCosto(request.costo());
         producto.setStockActual(request.stockActual());
         producto.setStockMinimo(request.stockMinimo());
-        producto.setMarca(request.marca()==null?null:request.marca().trim());
-        producto.setProveedor(request.proveedorId()==null?null:proveedorRepository.findById(request.proveedorId())
-                .filter(Proveedor::isActivo).orElseThrow(()->new RecursoNoEncontradoException("Proveedor "+request.proveedorId()+" no encontrado")));
+        // El catálogo anterior omite estos campos al editar: conservar sus datos.
+        if (request.marca() != null) {
+            producto.setMarca(request.marca().isBlank() ? null : request.marca().trim());
+        }
+        if (request.proveedorId() != null) {
+            producto.setProveedor(proveedorRepository.findById(request.proveedorId())
+                    .filter(Proveedor::isActivo)
+                    .orElseThrow(() -> new RecursoNoEncontradoException(
+                            "Proveedor " + request.proveedorId() + " no encontrado")));
+        }
     }
 
     private Categoria buscarCategoria(Long categoriaId) {

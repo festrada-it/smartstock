@@ -7,7 +7,9 @@ BEGIN
     ALTER TABLE categorias ADD COLUMN IF NOT EXISTS dias_alerta_vencimiento INTEGER NOT NULL DEFAULT 60 CHECK (dias_alerta_vencimiento > 0);
     ALTER TABLE categorias ADD COLUMN IF NOT EXISTS umbral_rotacion NUMERIC NOT NULL DEFAULT 0.10 CHECK (umbral_rotacion BETWEEN 0 AND 1);
     IF primera THEN
-        UPDATE categorias SET dias_alerta_vencimiento=CASE nombre WHEN 'Bebidas' THEN 90 WHEN 'Limpieza' THEN 120 ELSE 60 END;
+        UPDATE categorias SET dias_alerta_vencimiento=CASE nombre
+            WHEN 'Lácteos' THEN 15 WHEN 'Frescos' THEN 10
+            WHEN 'Bebidas' THEN 90 WHEN 'Limpieza' THEN 120 ELSE 60 END;
         UPDATE productos SET stock_minimo=30 WHERE sku IN ('ALM-001','ALM-002','ALM-003','ALM-004','BEB-001','BEB-002','LIM-001','LIM-002');
     END IF;
 END $$;

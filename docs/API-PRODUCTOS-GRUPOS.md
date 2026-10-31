@@ -17,12 +17,18 @@ hasta 100 caracteres) y `proveedorId` (opcional, proveedor activo existente).
 `categoriaId` sigue seleccionando el grupo. No se envían `proveedor` ni `grupo`
 como objetos de escritura.
 
+Compatibilidad del PUT: si `marca` o `proveedorId` se omiten o son null, se
+conserva el valor actual. Enviar `marca: ""` borra la marca intencionalmente.
+Un `proveedorId` no nulo reemplaza el proveedor por uno activo. El contrato no
+incluye todavía una operación para quitar una asociación de proveedor.
+
 ```json
 {"sku":"LACT-900","nombre":"Leche 1L","categoriaId":4,"marca":"SanCor","proveedorId":4,"precio":1800,"costo":1200,"stockActual":45,"stockMinimo":30}
 ```
 
-Estado de stock: SIN_STOCK si es cero; BAJO_MINIMO si es menor al mínimo; OK
-si es igual o mayor. Proveedor o grupo inexistente: 404; negativos/textos
+Estado de stock: SIN_STOCK si es cero; BAJO_MINIMO si es menor o igual al mínimo;
+OK si es mayor. Es la misma regla de analytics y del panel de alertas.
+Proveedor o grupo inexistente: 404; negativos/textos
 demasiado largos: 400 con `{"error":"mensaje en español"}`.
 
 ## Grupos

@@ -43,6 +43,6 @@ public record ProductoResponse(
         if (p.getStockActual() == 0) {
             return EstadoStock.SIN_STOCK;
         }
-        return p.getStockActual() < p.getStockMinimo() ? EstadoStock.BAJO_MINIMO : EstadoStock.OK;
+        return p.getStockActual() <= p.getStockMinimo() ? EstadoStock.BAJO_MINIMO : EstadoStock.OK;
     }
 }

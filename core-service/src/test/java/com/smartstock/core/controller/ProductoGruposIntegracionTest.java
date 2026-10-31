@@ -37,14 +37,33 @@ class ProductoGruposIntegracionTest {
         assertEquals(30,respuesta.getBody().get("stockMinimo").asInt());
         assertEquals("Marca IT",respuesta.getBody().get("marca").asText());
         assertEquals(proveedor.longValue(),respuesta.getBody().get("proveedorId").asLong());
-        assertEquals("OK",respuesta.getBody().get("estadoStock").asText());
+        assertEquals("BAJO_MINIMO",respuesta.getBody().get("estadoStock").asText());
         assertEquals(respuesta.getBody().get("categoriaNombre"),respuesta.getBody().get("grupo"));
         var lista=pedir(HttpMethod.GET,"/api/productos?proveedorId="+proveedor,null,Rol.VENDEDOR).getBody();
+        assertFalse(lista.isEmpty());
+        assertTrue(java.util.stream.StreamSupport.stream(lista.spliterator(),false)
+                .anyMatch(p -> p.get("id").asLong()==productoId));
         for(JsonNode p:lista) assertEquals(proveedor.longValue(),p.get("proveedorId").asLong());
         datos.put("stockActual",29);datos.put("stockMinimo",30);
         assertEquals("BAJO_MINIMO",pedir(HttpMethod.PUT,"/api/productos/"+productoId,datos,Rol.ADMIN).getBody().get("estadoStock").asText());
         datos.put("proveedorId",Long.MAX_VALUE);
         assertEquals(404,pedir(HttpMethod.PUT,"/api/productos/"+productoId,datos,Rol.ADMIN).getStatusCode().value());
+    }
+    @Test void putAnteriorConservaMarcaYProveedorYPermiteVaciarMarca() {
+        Long proveedor=db.queryForObject("SELECT MIN(id) FROM proveedores WHERE activo",Long.class);
+        var datos=new HashMap<String,Object>(Map.of("sku","IT-"+UUID.randomUUID(),"nombre","Producto IT","marca","Marca IT",
+                "proveedorId",proveedor,"precio",10,"costo",5,"stockActual",40,"stockMinimo",30));
+        var creado=pedir(HttpMethod.POST,"/api/productos",datos,Rol.ADMIN);
+        assertEquals(201,creado.getStatusCode().value());productoId=creado.getBody().get("id").asLong();
+        datos.remove("marca");datos.remove("proveedorId");datos.put("precio",12);
+        var editado=pedir(HttpMethod.PUT,"/api/productos/"+productoId,datos,Rol.ADMIN);
+        assertEquals(200,editado.getStatusCode().value());
+        assertEquals("Marca IT",editado.getBody().get("marca").asText());
+        assertEquals(proveedor.longValue(),editado.getBody().get("proveedorId").asLong());
+        datos.put("marca","");
+        var sinMarca=pedir(HttpMethod.PUT,"/api/productos/"+productoId,datos,Rol.ADMIN);
+        assertTrue(sinMarca.getBody().get("marca").isNull());
+        assertEquals(proveedor.longValue(),sinMarca.getBody().get("proveedorId").asLong());
     }
     @Test void grupoPermiteEditarReglasYValidaLimitesYRol() {
         String nombre="Grupo IT "+UUID.randomUUID();
@@ -59,9 +78,13 @@ class ProductoGruposIntegracionTest {
         datos.put("umbralRotacion",new java.math.BigDecimal("0.00001"));
         assertEquals(200,pedir(HttpMethod.PUT,"/api/categorias/"+grupoId,datos,Rol.ADMIN).getStatusCode().value());
         var grupos=pedir(HttpMethod.GET,"/api/categorias",null,Rol.VENDEDOR).getBody();
-        for(JsonNode g:grupos) if(g.get("id").asLong()==grupoId) {
-            assertEquals(0,new java.math.BigDecimal("0.00001").compareTo(g.get("umbralRotacion").decimalValue()));
-        }
+        JsonNode encontrado=null;
+        for(JsonNode g:grupos) if(g.get("id").asLong()==grupoId) encontrado=g;
+        assertNotNull(encontrado,"El grupo editado debe aparecer en la consulta");
+        assertEquals(0,new java.math.BigDecimal("0.00001").compareTo(encontrado.get("umbralRotacion").decimalValue()));
+        datos.put("nombre","Almacén");
+        assertEquals(400,pedir(HttpMethod.PUT,"/api/categorias/"+grupoId,datos,Rol.ADMIN).getStatusCode().value());
+        datos.put("nombre",nombre);
         assertEquals(403,pedir(HttpMethod.PUT,"/api/categorias/"+grupoId,datos,Rol.VENDEDOR).getStatusCode().value());
         datos.put("diasAlertaVencimiento",0);assertEquals(400,pedir(HttpMethod.PUT,"/api/categorias/"+grupoId,datos,Rol.ADMIN).getStatusCode().value());
         datos.put("diasAlertaVencimiento",15);datos.put("umbralRotacion",1.1);
