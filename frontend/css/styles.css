@@ -1,0 +1,4 @@
+/* Estilos propios de SmartStock (lo que no cubren Bootstrap ni Tailwind) */
+.navbar-brand {
+    letter-spacing: 0.5px;
+}

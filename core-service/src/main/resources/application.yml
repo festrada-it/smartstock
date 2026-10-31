@@ -1,0 +1,21 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: core-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smartstock}
+    username: ${DB_USER:smartstock}
+    password: ${DB_PASSWORD:smartstock}
+  jpa:
+    hibernate:
+      # El esquema lo crean los scripts de database/init, Hibernate solo lo valida
+      ddl-auto: validate
+    open-in-view: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

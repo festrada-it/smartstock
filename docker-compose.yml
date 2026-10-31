@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: smartstock-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-smartstock}
+      POSTGRES_USER: ${POSTGRES_USER:-smartstock}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartstock}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartstock} -d ${POSTGRES_DB:-smartstock}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  core-service:
+    build: ./core-service
+    container_name: smartstock-core
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-smartstock}
+      DB_USER: ${POSTGRES_USER:-smartstock}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-smartstock}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  analytics-service:
+    build: ./analytics-service
+    container_name: smartstock-analytics
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-smartstock}:${POSTGRES_PASSWORD:-smartstock}@db:5432/${POSTGRES_DB:-smartstock}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: smartstock-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - core-service
+      - analytics-service
+
+volumes:
+  db-data:
