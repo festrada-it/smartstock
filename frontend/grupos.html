@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartStock - Grupos de productos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/tailwind-config.js"></script>
+    <link href="css/styles.css" rel="stylesheet">
+</head>
+<body class="tw-bg-slate-50">
+<div class="tw-flex">
+    <aside id="sidebar" class="tw-w-64 tw-shrink-0 tw-border-r tw-bg-white"></aside>
+
+    <main class="tw-flex-1 tw-p-8">
+        <div class="tw-mb-6">
+            <h1 class="tw-m-0 tw-text-2xl tw-font-bold tw-text-slate-800">Grupos de productos</h1>
+            <p class="tw-mb-0 tw-mt-1 tw-text-slate-500">Reglas de negocio de cada grupo: cuándo avisar un vencimiento y desde qué rotación un producto se considera sano.</p>
+        </div>
+        <div id="aviso-ejemplo" class="alert alert-warning d-none">
+            <strong>Datos de ejemplo.</strong> Las reglas por grupo todavía no están disponibles en core (#16):
+            los cambios se guardan solo en esta pestaña y se pierden al recargar.
+        </div>
+        <div id="mensajes"></div>
+
+        <div class="tarjeta">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Grupo</th>
+                            <th class="text-end">Aviso de vencimiento</th>
+                            <th class="text-end">Umbral de rotación (30 días)</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-grupos" class="tw-tabular-nums">
+                        <tr><td colspan="4" class="text-center text-muted">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal edición de reglas del grupo -->
+<div class="modal fade" id="modal-grupo" tabindex="-1">
+    <div class="modal-dialog">
+        <form id="form-grupo" class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar grupo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="grupo-id">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label" for="grupo-nombre">Nombre</label>
+                        <input id="grupo-nombre" class="form-control" required maxlength="100">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="grupo-dias">Aviso de vencimiento (días)</label>
+                        <input id="grupo-dias" type="number" min="1" max="3650" step="1" class="form-control" required>
+                        <div class="form-text">Por defecto 60. Menos días para lácteos y frescos.</div>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="grupo-umbral">Umbral de rotación (%)</label>
+                        <input id="grupo-umbral" type="number" min="0" max="100" step="0.5" class="form-control" required>
+                        <div class="form-text">Por defecto 10%. Debajo, alerta de baja rotación.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-marca">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/datos-ejemplo-catalogo.js"></script>
+<script src="js/grupos.js"></script>
+</body>
+</html>
