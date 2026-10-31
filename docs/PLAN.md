@@ -17,6 +17,7 @@ Requerimiento: documento *Fase 1 - Grupo 7* (Programación de Vanguardia - UCBA)
 ### Base de datos (`database/init/`)
 - [x] Tablas: usuarios, categorias, productos (con costo y umbral mínimo), ventas, detalle_venta, movimientos_stock, parametros
 - [x] Datos de prueba: 2 usuarios, 8 productos, 90 días de ventas y compras simuladas
+- [x] `03_anulacion_ventas.sql`: columna `ventas.anulada` (#7)
 
 ### core-service (Java 21 + Spring Boot)
 - [x] Login con JWT (`POST /api/auth/login`) y permisos por rol (ADMIN / VENDEDOR)
@@ -25,6 +26,10 @@ Requerimiento: documento *Fase 1 - Grupo 7* (Programación de Vanguardia - UCBA)
 - [x] Ingreso de mercadería (`POST /api/compras`)
 - [x] Gestión de usuarios (`/api/usuarios`) y parámetros (`/api/parametros`)
 - [x] Tests unitarios (venta, JWT)
+- [x] Tests de controllers con `@WebMvcTest` y matriz de permisos por rol (#5)
+- [x] Historial de movimientos por producto `GET /api/productos/{id}/movimientos` (#6, [contrato](HISTORIAL-MOVIMIENTOS.md))
+- [x] Anulación de ventas con devolución de stock `POST /api/ventas/{id}/anular` (#7, [contrato](ANULACION-VENTAS.md))
+- [x] CI con PostgreSQL para tests de integración (#7)
 
 ### analytics-service (Python + FastAPI + scikit-learn + pandas)
 - [x] Regresión lineal sobre 90 días de ventas para proyectar demanda
@@ -47,7 +52,7 @@ Requerimiento: documento *Fase 1 - Grupo 7* (Programación de Vanguardia - UCBA)
 | Componente | Tarea |
 |------------|-------|
 | todos | Levantar con `docker compose up --build`, recorrer las 4 pantallas con ambos roles y cargar bugs |
-| core | Tests de integración de los controllers (`@WebMvcTest`) y de reglas de acceso por rol |
+| core | ✅ Tests de integración de los controllers (`@WebMvcTest`) y de reglas de acceso por rol (#5) |
 | analytics | Medir el error del modelo (MAE) con validación temporal (entrenar con 60 días, evaluar 30) |
 | front | Revisar diseño responsive (tablet para la pantalla de ventas, como en el mockup) |
 
@@ -56,9 +61,30 @@ Requerimiento: documento *Fase 1 - Grupo 7* (Programación de Vanguardia - UCBA)
 |------------|-------|
 | analytics | Comparar regresión lineal vs. Random Forest / estacionalidad semanal y elegir por MAE |
 | analytics | Endpoint con las métricas del modelo para mostrarlas en el dashboard |
-| core | Historial de movimientos por producto (`GET /api/productos/{id}/movimientos`) |
-| core | Anulación de ventas (devuelve stock) |
+| core | ✅ Historial de movimientos por producto (`GET /api/productos/{id}/movimientos`) (#6) · paginación pendiente (#8) |
+| core | ✅ Anulación de ventas (devuelve stock) (#7) |
 | front | Pantalla de historial de movimientos y de ventas por rango de fechas |
+
+### Plan de mejoras: distribuidor mayorista
+
+Detalle, modelo de datos y decisiones en [plan-mejoras.md](plan-mejoras.md). Tablero: [SmartStock](https://github.com/users/festrada-it/projects/1). Se marca cada tarea al mergear su PR.
+
+**Para la entrega intermedia (4-11): pasos 0 a 3**
+
+- [ ] **0. Preparación**: escenario en README y docs (#12) · 403 con cuerpo JSON (#13)
+- [ ] **1. Proveedores**: core (#14) · front (#15)
+- [ ] **2. Producto y stock mínimo de seguridad**: core (#16) · front (#17)
+- [ ] **3. Clientes**: core (#18) · front (#19)
+
+**Para la entrega final (12-11): pasos 4 a 8**
+
+- [ ] **4. Lotes con vencimiento y FEFO**: lotes (#20) · FEFO (#21) · vencimientos en analytics (#22) · front (#23)
+- [ ] **5. Pedidos con estados y factura**: cabecera y confirmación (#24) · envío, factura y cancelación (#25) · analytics (#26) · front (#27)
+- [ ] **6. Reglas por grupo (rotación)**: analytics (#28) · front (#29)
+- [ ] **7. Lead time en la predicción**: analytics (#30) · front (#31)
+- [ ] **8. Panel unificado de alertas**: analytics (#32) · front (#33)
+
+Seguimiento de lo ya hecho: paginación del historial (#8) y anulación en la matriz de `ControllersTest` (#9).
 
 ### Sprint 3 - Cierre
 - Pruebas end-to-end y corrección de bugs
@@ -66,13 +92,13 @@ Requerimiento: documento *Fase 1 - Grupo 7* (Programación de Vanguardia - UCBA)
 
 ## Paso 0 - Configuración de GitHub (owner del repo)
 
-1. **Invitar colaboradores**: Settings → Collaborators → *Add people*.
-2. **Crear la rama `develop`** desde `main`.
-3. **Proteger `main` y `develop`**: Settings → Rules → Rulesets → *New branch ruleset*:
+1. ✅ **Invitar colaboradores**: Settings → Collaborators → *Add people*.
+2. ✅ **Crear la rama `develop`** desde `main`.
+3. ⏳ **Proteger `main` y `develop`** (pendiente): Settings → Rules → Rulesets → *New branch ruleset*:
    - Require a pull request before merging (1 approval)
    - Require status checks to pass (jobs de CI)
-4. **Tablero**: Projects → *New project* → plantilla *Kanban*, vinculado al repo.
-5. **Labels**: `frontend`, `core`, `analytics`, `database`, `devops`, `bug`, `tarea`.
+4. ✅ **Tablero**: [SmartStock](https://github.com/users/festrada-it/projects/1), vista Board, vinculado al repo.
+5. ✅ **Labels**: `frontend`, `core`, `analytics`, `database`, `devops`, `bug`, `tarea`.
 
 ## Paso 1 - Cada integrante
 
