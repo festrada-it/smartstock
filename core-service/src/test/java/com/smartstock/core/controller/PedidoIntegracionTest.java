@@ -2,6 +2,7 @@ package com.smartstock.core.controller;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.net.URI;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -25,6 +27,7 @@ class PedidoIntegracionTest {
     @Autowired TestRestTemplate http;
     @Autowired JwtService jwt;
     @Autowired JdbcTemplate db;
+    @LocalServerPort int puerto;
     Long cliente;
     Long producto;
     Long otro;
@@ -258,6 +261,32 @@ class PedidoIntegracionTest {
         assertEquals(10, stock(producto));
         assertEquals(0, movimientos());
         assertEquals(404, post("/api/pedidos/" + Long.MAX_VALUE + "/confirmar", null, Rol.ADMIN).getStatusCode().value());
+    }
+
+    @Test void hastaIncluyeUltimoMicrosegundoYExcluyeMedianocheSiguiente() {
+        long ultimoDelDia = crear(List.of(item(producto, 1))).get("id").asLong();
+        long siguienteDia = crear(List.of(item(producto, 1))).get("id").asLong();
+        db.update("UPDATE ventas SET fecha=TIMESTAMP '2026-10-31 23:59:59.999999' WHERE id=?", ultimoDelDia);
+        db.update("UPDATE ventas SET fecha=TIMESTAMP '2026-11-01 00:00:00' WHERE id=?", siguienteDia);
+
+        var respuesta = get("/api/pedidos?clienteId=" + cliente + "&hasta=2026-10-31");
+        assertEquals(200, respuesta.getStatusCode().value());
+        var pagina = respuesta.getBody();
+        assertEquals(1, pagina.get("totalElementos").asInt());
+        assertEquals(1, pagina.get("contenido").size());
+        assertEquals(ultimoDelDia, pagina.get("contenido").get(0).get("id").asLong());
+    }
+
+    @Test void hastaMaximoDeLocalDateDevuelve400() {
+        var usuario = new Usuario();
+        usuario.setEmail("admin@smartstock.com");
+        usuario.setRol(Rol.VENDEDOR);
+        var headers = new HttpHeaders();
+        headers.setBearerAuth(jwt.generar(usuario));
+        var uri = URI.create("http://localhost:" + puerto + "/api/pedidos?hasta=%2B999999999-12-31");
+        var respuesta = http.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), JsonNode.class);
+        assertEquals(400, respuesta.getStatusCode().value());
+        assertEquals("La fecha hasta supera el máximo permitido", respuesta.getBody().get("error").asText());
     }
 
     @Test void ventaLegacyEsPedidoConfirmadoConClientePredeterminado() {
