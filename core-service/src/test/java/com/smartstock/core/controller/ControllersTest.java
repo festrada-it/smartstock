@@ -48,6 +48,7 @@ class ControllersTest {
     @MockBean CompraService compras;
     @MockBean UsuarioService usuarios;
     @MockBean ProveedorService proveedores;
+    @MockBean ClienteService clientes;
     @MockBean CategoriaRepository categorias;
     @MockBean ParametroRepository parametros;
 
@@ -56,6 +57,13 @@ class ControllersTest {
                 {"sku":"A1","nombre":"Yerba","precio":10,"costo":5,"stockActual":10,"stockMinimo":1}
                 """;
         return Stream.of(
+                Arguments.of("GET", "/api/clientes", "", 200, true),
+                Arguments.of("GET", "/api/clientes/1", "", 200, true),
+                Arguments.of("GET", "/api/clientes/1/pedidos", "", 200, true),
+                Arguments.of("GET", "/api/clientes/1/productos", "", 200, true),
+                Arguments.of("POST", "/api/clientes", "{\"nombre\":\"Cliente\",\"calidad\":\"BUENA\",\"clasificacion\":4}", 201, false),
+                Arguments.of("PUT", "/api/clientes/1", "{\"nombre\":\"Cliente\",\"calidad\":\"BUENA\",\"clasificacion\":4}", 200, false),
+                Arguments.of("DELETE", "/api/clientes/1", "", 204, false),
                 Arguments.of("GET", "/api/proveedores", "", 200, true),
                 Arguments.of("GET", "/api/proveedores/1", "", 200, true),
                 Arguments.of("GET", "/api/proveedores/1/productos", "", 200, true),
@@ -68,6 +76,7 @@ class ControllersTest {
                 Arguments.of("PUT", "/api/productos/1", producto, 200, false),
                 Arguments.of("DELETE", "/api/productos/1", "", 204, false),
                 Arguments.of("GET", "/api/categorias", "", 200, true),
+                Arguments.of("PUT", "/api/categorias/1", "{\"nombre\":\"Almacén\",\"diasAlertaVencimiento\":60,\"umbralRotacion\":0.1}", 200, false),
                 Arguments.of("GET", "/api/parametros", "", 200, true),
                 Arguments.of("GET", "/api/usuarios", "", 200, false),
                 Arguments.of("POST", "/api/usuarios", "{\"nombre\":\"Ana\",\"email\":\"ana@example.com\",\"password\":\"prueba123\",\"rol\":\"VENDEDOR\"}", 201, false),
@@ -86,6 +95,11 @@ class ControllersTest {
     @ParameterizedTest
     @MethodSource("rutas")
     void adminAccedeATodasLasRutas(String metodo, String ruta, String cuerpo, int estado, boolean vendedor) throws Exception {
+        if(ruta.equals("/api/categorias/1")) {
+            var categoria=new com.smartstock.core.model.Categoria();categoria.setId(1L);categoria.setNombre("Almacén");
+            when(categorias.findById(1L)).thenReturn(java.util.Optional.of(categoria));
+            when(categorias.save(any())).thenAnswer(inv->inv.getArgument(0));
+        }
         mvc.perform(peticion(metodo, ruta, cuerpo).header("Authorization", token(Rol.ADMIN)))
                 .andExpect(status().is(estado));
     }
@@ -134,6 +148,16 @@ class ControllersTest {
         mvc.perform(put("/api/parametros/dias_cobertura").header("Authorization", token(Rol.VENDEDOR))
                 .contentType("application/json").content("{\"valor\":\"7\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void clasificacionDeClienteDebeSerEntera() throws Exception {
+        mvc.perform(post("/api/clientes").header("Authorization",token(Rol.ADMIN))
+                .contentType("application/json").content("{\"nombre\":\"Cliente\",\"calidad\":\"BUENA\",\"clasificacion\":2.5}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+        mvc.perform(post("/api/ventas").header("Authorization",token(Rol.VENDEDOR))
+                .contentType("application/json").content("{\"clienteId\":1.9,\"items\":[{\"productoId\":1,\"cantidad\":1}]}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
     }
 
     @Test
