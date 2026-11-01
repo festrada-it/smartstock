@@ -16,6 +16,10 @@
     <main class="tw-flex-1 tw-p-8">
         <h1 class="tw-mb-6 tw-text-2xl tw-font-bold tw-text-slate-800">Monitor predictivo &amp; dashboard</h1>
         <div id="mensajes"></div>
+        <div id="aviso-ejemplo-reposicion" class="alert alert-warning d-none">
+            <strong>Datos de ejemplo.</strong> El punto de reposición y "comprar ahora" todavía no salen de analytics (#30):
+            se calculan con la fórmula del contrato para poder ver la pantalla.
+        </div>
 
         <!-- Métricas globales -->
         <section class="tw-mb-6 tw-grid tw-grid-cols-1 tw-gap-4 md:tw-grid-cols-4">
@@ -52,6 +56,7 @@
                 </div>
                 <div class="tw-relative tw-h-72"><canvas id="grafico-stock" aria-label="Stock histórico y proyectado"></canvas></div>
                 <p id="nota-quiebre" class="tw-mb-0 tw-mt-2 tw-text-sm tw-text-slate-600"></p>
+                <div id="detalle-reposicion" class="tw-mt-3 tw-rounded-lg tw-border tw-bg-slate-50 tw-p-3 tw-text-sm" aria-live="polite"></div>
             </div>
 
             <!-- Alertas -->
@@ -87,6 +92,8 @@
                             <th class="text-end">Días hasta quiebre</th>
                             <th>Fecha estimada</th>
                             <th class="text-end">Compra sugerida</th>
+                            <th class="text-end">Punto de reposición</th>
+                            <th>Pedir antes de</th>
                         </tr>
                     </thead>
                     <tbody id="tabla-predicciones" class="tw-tabular-nums"></tbody>
@@ -101,6 +108,7 @@
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/layout.js"></script>
+<script src="js/datos-ejemplo-reposicion.js"></script>
 <script src="js/dashboard.js"></script>
 </body>
 </html>
