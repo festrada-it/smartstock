@@ -107,11 +107,13 @@ function renderCarrito() {
     cuerpo.innerHTML = [...carrito.values()].map(({ producto, cantidad }) => {
         const subtotal = producto.precio * cantidad;
         total += subtotal;
+        const aviso = avisoStockInsuficiente(cantidad, producto.stockActual);
         return `
             <tr>
                 <td>${escaparHtml(producto.nombre)}</td>
-                <td><input type="number" class="form-control form-control-sm" min="1" max="${producto.stockActual}" step="1"
-                           value="${cantidad}" data-cantidad="${producto.id}"></td>
+                <td><input type="number" class="form-control form-control-sm${aviso ? ' is-invalid' : ''}" min="1" step="1"
+                           value="${cantidad}" data-cantidad="${producto.id}" aria-label="Cantidad de ${escaparHtml(producto.nombre)}">
+                    ${aviso ? `<div class="tw-mt-1 tw-text-xs tw-font-semibold text-danger" role="alert">⛔ ${aviso}</div>` : ''}</td>
                 <td class="text-end">${formatoMoneda(producto.precio)}</td>
                 <td class="text-end">${formatoMoneda(subtotal)}</td>
                 <td class="text-end"><button class="btn btn-sm btn-link text-danger" data-quitar="${producto.id}" title="Quitar">✕</button></td>
@@ -119,13 +121,12 @@ function renderCarrito() {
     }).join('') || '<tr><td colspan="5" class="text-center text-muted">Buscá un producto y hacé click para agregarlo</td></tr>';
 
     document.getElementById('total').textContent = formatoMoneda(total);
-    document.getElementById('btn-finalizar').disabled = carrito.size === 0;
+    // No se puede finalizar mientras alguna línea pida más que el stock (#72).
+    document.getElementById('btn-finalizar').disabled = carrito.size === 0 || lineasSinStock([...carrito.values()]).length > 0;
 
     cuerpo.querySelectorAll('[data-cantidad]').forEach(input => input.addEventListener('change', () => {
-        const item = carrito.get(Number(input.dataset.cantidad));
-        // Solo enteros: core rechaza cantidades con decimales (#37).
-        const cantidad = Math.max(1, Math.min(Math.trunc(Number(input.value)) || 1, item.producto.stockActual));
-        item.cantidad = cantidad;
+        // Se respeta lo que escribió el vendedor; si supera el stock, se avisa en la línea.
+        carrito.get(Number(input.dataset.cantidad)).cantidad = cantidadIngresada(input.value);
         renderCarrito();
     }));
     cuerpo.querySelectorAll('[data-quitar]').forEach(boton => boton.addEventListener('click', () => {
@@ -136,6 +137,7 @@ function renderCarrito() {
 
 async function finalizarVenta() {
     const boton = document.getElementById('btn-finalizar');
+    if (lineasSinStock([...carrito.values()]).length) return;
     boton.disabled = true;
     try {
         const cliente = clienteSeleccionado();
