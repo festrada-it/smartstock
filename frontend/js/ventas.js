@@ -107,11 +107,13 @@ function renderCarrito() {
     cuerpo.innerHTML = [...carrito.values()].map(({ producto, cantidad }) => {
         const subtotal = producto.precio * cantidad;
         total += subtotal;
+        const aviso = avisoStockInsuficiente(cantidad, producto.stockActual);
         return `
             <tr>
                 <td>${escaparHtml(producto.nombre)}</td>
-                <td><input type="number" class="form-control form-control-sm" min="1" max="${producto.stockActual}" step="1"
-                           value="${cantidad}" data-cantidad="${producto.id}"></td>
+                <td><input type="number" class="form-control form-control-sm${aviso ? ' is-invalid' : ''}" min="1" step="1"
+                           value="${cantidad}" data-cantidad="${producto.id}" aria-label="Cantidad de ${escaparHtml(producto.nombre)}">
+                    ${aviso ? `<div class="tw-mt-1 tw-text-xs tw-font-semibold text-danger" role="alert">⛔ ${aviso}</div>` : ''}</td>
                 <td class="text-end">${formatoMoneda(producto.precio)}</td>
                 <td class="text-end">${formatoMoneda(subtotal)}</td>
                 <td class="text-end"><button class="btn btn-sm btn-link text-danger" data-quitar="${producto.id}" title="Quitar">✕</button></td>
@@ -122,10 +124,8 @@ function renderCarrito() {
     document.getElementById('btn-finalizar').disabled = carrito.size === 0;
 
     cuerpo.querySelectorAll('[data-cantidad]').forEach(input => input.addEventListener('change', () => {
-        const item = carrito.get(Number(input.dataset.cantidad));
-        // Solo enteros: core rechaza cantidades con decimales (#37).
-        const cantidad = Math.max(1, Math.min(Math.trunc(Number(input.value)) || 1, item.producto.stockActual));
-        item.cantidad = cantidad;
+        // Se respeta lo que escribió el vendedor; si supera el stock, se avisa en la línea y core decide al guardar (#72).
+        carrito.get(Number(input.dataset.cantidad)).cantidad = cantidadIngresada(input.value);
         renderCarrito();
     }));
     cuerpo.querySelectorAll('[data-quitar]').forEach(boton => boton.addEventListener('click', () => {
@@ -152,7 +152,9 @@ async function finalizarVenta() {
         document.getElementById('buscador').value = '';
         await Promise.all([cargarProductos(), cargarVentasDelDia()]);
     } catch (e) {
-        mostrarMensaje(e.message, 'danger');
+        // Sin stock suficiente, core no registra la venta y guarda la venta perdida del faltante (plan §10.3).
+        if (esRechazoPorStock(e, [...carrito.values()])) mostrarMensaje(MENSAJE_SIN_STOCK, 'warning');
+        else mostrarMensaje(e.message, 'danger');
         boton.disabled = false;
     }
 }
