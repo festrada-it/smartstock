@@ -1,6 +1,7 @@
 const sesion = Sesion.requerir(['ADMIN', 'VENDEDOR']);
 
 let productos = [];
+let clientes = [];
 // productoId -> { producto, cantidad }
 const carrito = new Map();
 
@@ -17,8 +18,44 @@ async function iniciar() {
     });
     document.getElementById('btn-vaciar').addEventListener('click', () => { carrito.clear(); renderCarrito(); });
     document.getElementById('btn-finalizar').addEventListener('click', finalizarVenta);
+    document.getElementById('cliente').addEventListener('change', renderCliente);
 
-    await Promise.all([cargarProductos(), cargarVentasDelDia()]);
+    await Promise.all([cargarProductos(), cargarClientes(), cargarVentasDelDia()]);
+}
+
+async function cargarClientes() {
+    const selector = document.getElementById('cliente');
+    try {
+        clientes = await fuenteClientes.listar();
+        selector.innerHTML = clientes.map(c => `<option value="${c.id}">${escaparHtml(c.nombre)}</option>`).join('');
+        // Por defecto "Consumidor final", buscado por nombre (su id depende de la base).
+        const porDefecto = clientes.find(esConsumidorFinal);
+        if (porDefecto) selector.value = porDefecto.id;
+    } catch (e) {
+        selector.innerHTML = '<option value="">Sin cliente (no se pudieron cargar)</option>';
+        mostrarMensaje(`No se pudieron cargar los clientes: ${e.message}`, 'warning');
+    }
+    renderCliente();
+}
+
+function clienteSeleccionado() {
+    return clientes.find(c => c.id === Number(document.getElementById('cliente').value)) ?? null;
+}
+
+/** Muestra la clasificación del cliente de forma visible para decidir cuánto venderle. */
+function renderCliente() {
+    const cliente = clienteSeleccionado();
+    const calificacion = document.getElementById('cliente-calificacion');
+    const aviso = document.getElementById('cliente-aviso');
+    if (!cliente) {
+        calificacion.innerHTML = '';
+        aviso.innerHTML = '';
+        return;
+    }
+    calificacion.innerHTML = `${estrellas(cliente.clasificacion, 'tw-text-2xl')} ${badgeCalidad(cliente.calidad)}`;
+    aviso.innerHTML = esDeRiesgo(cliente)
+        ? '<span class="tw-font-semibold tw-text-amber-700">⚠️ Cliente de riesgo: conviene limitar la cantidad o pedir pago por adelantado.</span>'
+        : `<span class="tw-text-slate-500">${cliente.clasificacion >= 4 ? 'Cliente confiable.' : 'Cliente regular.'}</span>`;
 }
 
 async function cargarProductos() {
@@ -73,7 +110,7 @@ function renderCarrito() {
         return `
             <tr>
                 <td>${escaparHtml(producto.nombre)}</td>
-                <td><input type="number" class="form-control form-control-sm" min="1" max="${producto.stockActual}"
+                <td><input type="number" class="form-control form-control-sm" min="1" max="${producto.stockActual}" step="1"
                            value="${cantidad}" data-cantidad="${producto.id}"></td>
                 <td class="text-end">${formatoMoneda(producto.precio)}</td>
                 <td class="text-end">${formatoMoneda(subtotal)}</td>
@@ -86,7 +123,8 @@ function renderCarrito() {
 
     cuerpo.querySelectorAll('[data-cantidad]').forEach(input => input.addEventListener('change', () => {
         const item = carrito.get(Number(input.dataset.cantidad));
-        const cantidad = Math.max(1, Math.min(Number(input.value) || 1, item.producto.stockActual));
+        // Solo enteros: core rechaza cantidades con decimales (#37).
+        const cantidad = Math.max(1, Math.min(Math.trunc(Number(input.value)) || 1, item.producto.stockActual));
         item.cantidad = cantidad;
         renderCarrito();
     }));
@@ -100,13 +138,17 @@ async function finalizarVenta() {
     const boton = document.getElementById('btn-finalizar');
     boton.disabled = true;
     try {
+        const cliente = clienteSeleccionado();
         const venta = await coreApi('/ventas', {
             method: 'POST',
-            body: { items: [...carrito.values()].map(i => ({ productoId: i.producto.id, cantidad: i.cantidad })) },
+            body: {
+                clienteId: cliente?.id ?? null,
+                items: [...carrito.values()].map(i => ({ productoId: i.producto.id, cantidad: i.cantidad })),
+            },
         });
         carrito.clear();
         renderCarrito();
-        mostrarMensaje(`Venta #${venta.id} registrada por ${formatoMoneda(venta.total)}`);
+        mostrarMensaje(`Venta #${venta.id} a ${venta.cliente ?? cliente?.nombre ?? 'sin cliente'} registrada por ${formatoMoneda(venta.total)}`);
         document.getElementById('buscador').value = '';
         await Promise.all([cargarProductos(), cargarVentasDelDia()]);
     } catch (e) {
@@ -121,10 +163,11 @@ async function cargarVentasDelDia() {
         <tr>
             <td>${v.id}</td>
             <td>${v.fecha.slice(11, 16)}</td>
+            <td>${escaparHtml(v.cliente ?? '-')}</td>
             <td>${escaparHtml(v.vendedor)}</td>
             <td class="tw-text-sm">${v.items.map(i => `${i.cantidad} × ${escaparHtml(i.producto)}`).join(', ')}</td>
             <td class="text-end">${formatoMoneda(v.total)}</td>
-        </tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted">Todavía no hay ventas hoy</td></tr>';
+        </tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted">Todavía no hay ventas hoy</td></tr>';
 }
 
 if (sesion) {
