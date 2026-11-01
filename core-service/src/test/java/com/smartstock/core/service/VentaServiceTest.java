@@ -41,6 +41,8 @@ class VentaServiceTest {
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private MovimientoStockRepository movimientoRepository;
 
+    @Mock private com.smartstock.core.repository.ClienteRepository clienteRepository;
+    @Mock private org.springframework.jdbc.core.JdbcTemplate db;
     @InjectMocks private VentaService ventaService;
 
     private Producto yerba;
@@ -53,6 +55,10 @@ class VentaServiceTest {
         vendedor.setRol(Rol.VENDEDOR);
         when(usuarioRepository.findByEmail(EMAIL)).thenReturn(Optional.of(vendedor));
 
+        var cliente = new com.smartstock.core.model.Cliente();
+        cliente.setNombre("Consumidor final");
+        when(clienteRepository.findFirstByNombreAndActivoTrueOrderByIdAsc("Consumidor final"))
+                .thenReturn(Optional.of(cliente));
         yerba = new Producto();
         yerba.setId(1L);
         yerba.setNombre("Yerba mate 1kg");
