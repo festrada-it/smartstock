@@ -4,19 +4,21 @@
 
 const PERIODOS = [30, 90];
 
+// Estados del semáforo del DSI, con los mismos nombres que analytics y docs/plan-mejoras.md §10.2.
+// `ayuda` es el texto del tooltip.
 const SEMAFORO_DSI = {
-    RIESGO_QUIEBRE: { icono: '⛔', texto: 'Riesgo de quiebre', clase: 'text-danger' },
-    DINERO_ATRAPADO_ROJO: { icono: '⛔', texto: 'Dinero atrapado', clase: 'text-danger' },
-    DINERO_ATRAPADO: { icono: '⚠️', texto: 'Dinero atrapado', clase: 'tw-text-amber-700' },
-    SIN_VENTAS: { icono: '⛔', texto: 'Sin ventas', clase: 'text-danger' },
-    SALUDABLE: { icono: '✅', texto: 'Saludable', clase: 'text-success' },
+    REPONER_YA: { icono: '⛔', texto: 'Reponer ya', ayuda: 'Alcanza para menos de 7 días. Hay que reponer.', clase: 'text-danger' },
+    TODO_EN_ORDEN: { icono: '✅', texto: 'Todo en orden', ayuda: 'Stock equilibrado con las ventas.', clase: 'text-success' },
+    FRENAR_COMPRAS: { icono: '⚠️', texto: 'Frenar compras', ayuda: 'Hay plata inmovilizada. Revisar las próximas compras.', clase: 'tw-text-amber-700' },
+    LIQUIDAR_STOCK: { icono: '⛔', texto: 'Liquidar stock', ayuda: 'Más de 3 meses de stock. Promocionar o no recomprar.', clase: 'text-danger' },
+    SIN_VENTAS: { icono: '⛔', texto: 'Sin ventas', ayuda: 'No hubo ventas en el período: el DSI no se puede calcular.', clase: 'text-danger' },
 };
 
 // Texto de los tooltips (ⓘ) de las tarjetas, para la defensa oral.
 const FORMULAS = {
     dsi: 'DSI = valor del stock a costo ÷ (costo de ventas del período ÷ días del período). '
         + 'El costo de ventas usa el costo actual del producto hasta que existan lotes. '
-        + 'Semáforo (configurable): menos de 7 días rojo (riesgo de quiebre), de 45 amarillo y de 90 rojo (dinero atrapado). '
+        + 'Semáforo (configurable): menos de 7 días Reponer ya, de 7 a 45 Todo en orden, de 45 a 90 Frenar compras y más de 90 Liquidar stock. '
         + 'Sin ventas en el período no se puede calcular.',
     rotacion: 'Rotación a costo = costo de ventas del período ÷ stock promedio a costo. '
         + 'Mensual = × 30 ÷ días del período; anualizada = × 365 ÷ días del período. '
@@ -36,12 +38,10 @@ function queryDashboard(periodo, grupoId) {
     return `?${params.join('&')}`;
 }
 
-/** Semáforo del DSI tal como lo informa analytics (`semaforo` + `motivo`), con ícono y texto. */
-function semaforoDsi({ dsi, semaforo, motivo }) {
-    if (dsi === null || dsi === undefined || motivo === 'SIN_VENTAS') return SEMAFORO_DSI.SIN_VENTAS;
-    if (semaforo === 'VERDE') return SEMAFORO_DSI.SALUDABLE;
-    if (semaforo === 'AMARILLO') return SEMAFORO_DSI.DINERO_ATRAPADO;
-    return motivo === 'RIESGO_QUIEBRE' ? SEMAFORO_DSI.RIESGO_QUIEBRE : SEMAFORO_DSI.DINERO_ATRAPADO_ROJO;
+/** Semáforo del DSI tal como lo informa analytics (`estado`), con ícono, texto y ayuda. */
+function semaforoDsi({ dsi, estado }) {
+    if (dsi === null || dsi === undefined) return SEMAFORO_DSI.SIN_VENTAS;
+    return SEMAFORO_DSI[estado] ?? { icono: '', texto: estado ?? '-', ayuda: '', clase: 'text-muted' };
 }
 
 function formatoNumero(valor, decimales) {

@@ -1,7 +1,7 @@
 // Tests de la lógica del monitor de dirección. Correr con: node --test frontend/tests/
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { FORMULAS, queryDashboard, semaforoDsi, formatoDias, formatoRotacion, variacion } = require('../js/indicadores.js');
+const { FORMULAS, SEMAFORO_DSI, queryDashboard, semaforoDsi, formatoDias, formatoRotacion, variacion } = require('../js/indicadores.js');
 const { DashboardEjemplo } = require('../js/datos-ejemplo-dashboard.js');
 
 const ORDEN_SEMAFORO = { ROJO: 0, AMARILLO: 1, VERDE: 2 };
@@ -17,22 +17,32 @@ test('queryDashboard arma período y grupo, y rechaza otros períodos', () => {
     assert.throws(() => queryDashboard(60), /Período inválido/);
 });
 
-test('semaforoDsi muestra ícono y texto para cada estado', () => {
+test('semaforoDsi muestra ícono, nombre y ayuda de cada estado', () => {
     assert.deepEqual(
         [
-            { dsi: 5, semaforo: 'ROJO', motivo: 'RIESGO_QUIEBRE' },
-            { dsi: 20, semaforo: 'VERDE', motivo: null },
-            { dsi: 60, semaforo: 'AMARILLO', motivo: 'DINERO_ATRAPADO' },
-            { dsi: 120, semaforo: 'ROJO', motivo: 'DINERO_ATRAPADO' },
-            { dsi: null, semaforo: 'ROJO', motivo: 'SIN_VENTAS' },
-        ].map(item => { const s = semaforoDsi(item); return `${s.icono} ${s.texto}`; }),
-        ['⛔ Riesgo de quiebre', '✅ Saludable', '⚠️ Dinero atrapado', '⛔ Dinero atrapado', '⛔ Sin ventas'],
+            { dsi: 5, semaforo: 'ROJO', estado: 'REPONER_YA' },
+            { dsi: 20, semaforo: 'VERDE', estado: 'TODO_EN_ORDEN' },
+            { dsi: 60, semaforo: 'AMARILLO', estado: 'FRENAR_COMPRAS' },
+            { dsi: 120, semaforo: 'ROJO', estado: 'LIQUIDAR_STOCK' },
+            { dsi: null, semaforo: 'ROJO', estado: 'SIN_VENTAS' },
+        ].map(item => { const s = semaforoDsi(item); return `${s.icono} ${s.texto}: ${s.ayuda}`; }),
+        [
+            '⛔ Reponer ya: Alcanza para menos de 7 días. Hay que reponer.',
+            '✅ Todo en orden: Stock equilibrado con las ventas.',
+            '⚠️ Frenar compras: Hay plata inmovilizada. Revisar las próximas compras.',
+            '⛔ Liquidar stock: Más de 3 meses de stock. Promocionar o no recomprar.',
+            '⛔ Sin ventas: No hubo ventas en el período: el DSI no se puede calcular.',
+        ],
     );
 });
 
-test('sin ventas: DSI null se muestra como "sin ventas" aunque falte el motivo', () => {
+test('sin ventas: DSI null se muestra como "sin ventas" aunque falte el estado', () => {
     assert.equal(formatoDias(null), 'sin ventas');
     assert.equal(semaforoDsi({ dsi: null, semaforo: 'ROJO' }).texto, 'Sin ventas');
+});
+
+test('un estado desconocido se muestra tal cual, sin romper', () => {
+    assert.equal(semaforoDsi({ dsi: 30, semaforo: 'VERDE', estado: 'OTRO' }).texto, 'OTRO');
 });
 
 test('formatos en es-AR', () => {
@@ -56,7 +66,7 @@ test('datos de ejemplo: forma del contrato y orden de peor a mejor', () => {
     for (const periodo of [30, 90]) {
         const r = DashboardEjemplo.inventario(periodo, null, GRUPOS);
         assert.equal(r.periodo, periodo);
-        for (const campo of ['valor_stock', 'costo_ventas', 'dsi', 'rotacion_mensual', 'rotacion_anual', 'semaforo']) {
+        for (const campo of ['valor_stock', 'costo_ventas', 'dsi', 'rotacion_mensual', 'rotacion_anual', 'semaforo', 'estado']) {
             assert.ok(campo in r.total, campo);
         }
         assert.deepEqual(Object.keys(r.anterior).sort(), ['dsi', 'rotacion_anual', 'rotacion_mensual']);
@@ -64,7 +74,8 @@ test('datos de ejemplo: forma del contrato y orden de peor a mejor', () => {
             const orden = lista.map(x => ORDEN_SEMAFORO[x.semaforo]);
             assert.deepEqual(orden, [...orden].sort((a, b) => a - b));
         }
-        assert.ok(r.por_producto.some(p => p.dsi === null && p.motivo === 'SIN_VENTAS'));
+        assert.ok(r.por_producto.some(p => p.dsi === null && p.estado === 'SIN_VENTAS'));
+        for (const x of [r.total, ...r.por_grupo, ...r.por_producto]) assert.ok(x.estado in SEMAFORO_DSI, x.estado);
     }
 });
 

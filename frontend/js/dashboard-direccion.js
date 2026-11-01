@@ -31,8 +31,10 @@ async function cargarDireccion() {
         const inventario = await fuenteDashboard.inventario(periodo, grupoId, gruposDireccion);
         renderTarjetas(inventario, periodo);
         renderSalud(inventario);
+        activarTooltips();
     } catch (e) {
         renderTarjetas(null, periodo);
+        activarTooltips();
         document.getElementById('salud-totales').innerHTML = '';
         document.getElementById('tabla-salud-grupos').innerHTML = filaVacia(7, 'No se pudo cargar la salud del inventario.');
         document.getElementById('tabla-salud-productos').innerHTML = filaVacia(7, 'No se pudo cargar la salud del inventario.');
@@ -46,7 +48,15 @@ function filaVacia(columnas, texto) {
 
 function etiquetaSemaforo(item) {
     const s = semaforoDsi(item);
-    return `<span class="${s.clase} tw-whitespace-nowrap">${s.icono} ${s.texto}</span>`;
+    const ayuda = s.ayuda ? ` data-bs-toggle="tooltip" title="${escaparHtml(s.ayuda)}" tabindex="0"` : '';
+    return `<span class="${s.clase} tw-cursor-help tw-whitespace-nowrap"${ayuda}>${s.icono} ${escaparHtml(s.texto)}</span>`;
+}
+
+/** (Re)crea los tooltips de las tarjetas y de la pestaña Salud después de cada render. */
+function activarTooltips() {
+    tooltipsDireccion.forEach(t => t.dispose());
+    tooltipsDireccion = [...document.querySelectorAll('#tarjetas-direccion [data-bs-toggle="tooltip"], #panel-salud [data-bs-toggle="tooltip"]')]
+        .map(el => new bootstrap.Tooltip(el));
 }
 
 function botonFormula(titulo, formula) {
@@ -84,15 +94,12 @@ function renderTarjetas(inventario, periodo) {
             variacion: variacion(inventario.total.rotacion_mensual, inventario.anterior.rotacion_mensual, formatoRotacion, periodo) }
         : sinDatos;
 
-    tooltipsDireccion.forEach(t => t.dispose());
     document.getElementById('tarjetas-direccion').innerHTML = [
         tarjeta({ ...dsi, titulo: 'DSI (días de inventario)', formula: FORMULAS.dsi }),
         tarjeta({ ...rotacion, titulo: 'Rotación del inventario', formula: FORMULAS.rotacion }),
         tarjetaProximamente('$ en riesgo', FORMULAS.enRiesgo, '#61'),
         tarjetaProximamente('Fill Rate', FORMULAS.fillRate, '#62'),
     ].join('');
-    tooltipsDireccion = [...document.querySelectorAll('#tarjetas-direccion [data-bs-toggle="tooltip"]')]
-        .map(el => new bootstrap.Tooltip(el));
 }
 
 function totalSalud(titulo, valor, extra = '') {
