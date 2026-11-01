@@ -120,6 +120,7 @@ public class Venta {
     }
     public EstadoEntrega getEstadoEntrega() { return estadoEntrega; }
     public String getNumeroFactura() { return numeroFactura; }
+    public void setNumeroFactura(String numeroFactura) { this.numeroFactura = numeroFactura; }
 
     private void calcularEntrega() {
         estadoEntrega = estado == EstadoPedido.ENTREGADO ? EstadoEntrega.ENTREGADA

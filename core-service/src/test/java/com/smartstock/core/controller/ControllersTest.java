@@ -61,6 +61,10 @@ class ControllersTest {
                 {"sku":"A1","nombre":"Yerba","precio":10,"costo":5,"stockActual":10,"stockMinimo":1}
                 """;
         return Stream.of(
+                Arguments.of("POST", "/api/pedidos/1/enviar", "", 200, true),
+                Arguments.of("POST", "/api/pedidos/1/entregar", "", 200, true),
+                Arguments.of("POST", "/api/pedidos/1/cancelar", "", 200, false),
+                Arguments.of("PUT", "/api/pedidos/1/fecha-envio", "{\"fechaEnvio\":\"2026-11-04\"}", 200, true),
                 Arguments.of("POST", "/api/pedidos", "{\"clienteId\":1,\"formaPago\":\"EFECTIVO\",\"items\":[{\"productoId\":1,\"cantidad\":2}]}", 201, true),
                 Arguments.of("GET", "/api/pedidos", "", 200, true),
                 Arguments.of("GET", "/api/pedidos/1", "", 200, true),

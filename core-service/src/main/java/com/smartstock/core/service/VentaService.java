@@ -112,25 +112,34 @@ public class VentaService {
                 .toList();
     }
 
-    /** La venta permanece para auditoría; el bloqueo evita devolver el stock dos veces. */
+    /** Alias temporal: comparte la cancelación y conserva el DTO legacy. */
     @Transactional
     public VentaResponse anular(Long id, String emailUsuario) {
+        return VentaResponse.desde(cancelar(id, emailUsuario));
+    }
+
+    Venta cancelar(Long id, String emailUsuario) {
         Venta venta = ventaRepository.findByIdParaActualizar(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Venta " + id + " no encontrada"));
-        if (venta.isAnulada()) {
-            throw new NegocioException("La venta " + id + " ya está anulada");
+                .orElseThrow(() -> new RecursoNoEncontradoException("Pedido " + id + " no encontrado"));
+        if (venta.getEstado() == EstadoPedido.CANCELADO) {
+            throw new NegocioException("El pedido " + id + " ya está cancelado");
         }
-        if (venta.getEstado() != EstadoPedido.CONFIRMADO) {
-            throw new NegocioException("Solo se puede anular una venta CONFIRMADA");
+        if (venta.getEstado() != EstadoPedido.PENDIENTE && venta.getEstado() != EstadoPedido.CONFIRMADO) {
+            throw new NegocioException("Solo se puede cancelar un pedido PENDIENTE o CONFIRMADO");
+        }
+        if (venta.getEstado() == EstadoPedido.PENDIENTE) {
+            venta.setEstado(EstadoPedido.CANCELADO);
+            return venta;
         }
         Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Usuario " + emailUsuario + " no encontrado"));
         Map<Long, Producto> productos = bloquearProductos(venta.getDetalles().stream()
                 .map(d -> d.getProducto().getId()).toList());
         var movimientos = restituirStock(venta, usuario, productos);
+        movimientos.forEach(m -> m.setObservacion("Cancelación de pedido " + venta.getNumeroOrden()));
         venta.setEstado(EstadoPedido.CANCELADO);
         movimientoRepository.saveAll(movimientos);
-        return VentaResponse.desde(venta);
+        return venta;
     }
 
     List<MovimientoStock> descontarStock(Venta venta, Usuario usuario, Map<Long, Producto> productos) {
@@ -185,7 +194,6 @@ public class VentaService {
                 var movimiento = new MovimientoStock(producto, TipoMovimiento.AJUSTE, detalle.getCantidad(), usuario);
                 movimiento.setVenta(venta);
                 movimiento.setLoteId(apertura.getId());
-                movimiento.setObservacion("Anulación de venta " + venta.getId());
                 movimientos.add(movimiento);
             } else {
                 if (originales.stream().mapToLong(ConsumoLote::getCantidad).sum() != detalle.getCantidad()) {
@@ -201,7 +209,6 @@ public class VentaService {
                     var movimiento = new MovimientoStock(producto, TipoMovimiento.AJUSTE, consumo.getCantidad(), usuario);
                     movimiento.setVenta(venta);
                     movimiento.setLoteId(lote.getId());
-                    movimiento.setObservacion("Anulación de venta " + venta.getId());
                     movimientos.add(movimiento);
                 }
             }

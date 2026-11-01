@@ -23,6 +23,9 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
     @Query(value = "SELECT nextval('numero_orden_seq')", nativeQuery = true)
     long siguienteNumeroOrden();
 
+    @Query(value = "SELECT nextval('numero_factura_seq')", nativeQuery = true)
+    long siguienteNumeroFactura();
+
     @Query("""
             SELECT new com.smartstock.core.dto.PedidoClienteResponse(v.id,v.fecha,v.total,v.anulada)
             FROM Venta v WHERE v.cliente.id=:clienteId ORDER BY v.fecha DESC,v.id DESC

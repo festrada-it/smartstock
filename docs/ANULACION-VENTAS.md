@@ -10,15 +10,21 @@ registro y de ventas del día, inicialmente en `false`.
 - Venta ya anulada o devolución que supera el máximo INTEGER de stock: 400
   con mensaje en español. Ninguno de esos casos cambia el inventario.
 
-La operación conserva venta y detalles, devuelve todas las cantidades
-(incluso si el producto fue dado de baja) y registra movimientos AJUSTE
-positivos con el usuario, la venta y la observación `Anulación de venta {id}`.
+Desde #25, esta ruta es un alias de la cancelación de pedidos y conserva su
+respuesta VentaResponse. PENDIENTE cancela sin devolver stock ni crear movimientos;
+CONFIRMADO devuelve solo las cantidades entregadas a sus lotes originales
+(incluso de productos dados de baja) y registra AJUSTE positivo por fracción de
+lote con loteId, usuario, venta y observación
+`Cancelación de pedido OC-...`. ENVIADO/ENTREGADO/CANCELADO dan400.
+La operación conserva venta, detalles y consumos para auditoría. Los detalles
+históricos sin consumos restituyen al lote de apertura (`docs/API-LOTES.md`).
 Una transacción bloquea la venta y los productos; una solicitud repetida o
 simultánea no puede devolver dos veces el stock. Ventas y anulaciones toman
-los bloqueos de productos en orden de identificador.
+los bloqueos de productos en orden de identificador, y luego los de sus lotes.
 
 `GET /api/ventas/hoy` devuelve solo ventas vigentes para que la pantalla actual
-no sume ventas anuladas. Analytics también las excluye de ingresos y demanda.
+no sume ventas anuladas ni pedidos pendientes. Analytics debe filtrar estados
+(#26), además de anulada, para excluir pedidos PENDIENTES.
 La reconstrucción del stock histórico mantiene los movimientos originales y
 compensatorios, respetando cuándo ocurrió cada variación.
 
