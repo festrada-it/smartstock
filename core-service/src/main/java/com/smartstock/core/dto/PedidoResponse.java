@@ -16,6 +16,7 @@ public record PedidoResponse(
         String numeroFactura, List<Item> items, List<String> advertencias) {
 
     public record Item(Long productoId, String producto, String marca, Integer cantidad,
+                       Integer cantidadSolicitada, Integer cantidadEntregada, Integer faltante,
                        BigDecimal precioUnitario, BigDecimal subtotal) {
     }
 
@@ -27,7 +28,8 @@ public record PedidoResponse(
         var cliente = venta.getCliente();
         var items = venta.getDetalles().stream()
                 .map(d -> new Item(d.getProducto().getId(), d.getProducto().getNombre(),
-                        d.getProducto().getMarca(), d.getCantidad(), d.getPrecioUnitario(), d.getSubtotal()))
+                        d.getProducto().getMarca(), d.getCantidad(), d.getCantidadSolicitada(), d.getCantidad(),
+                        d.getCantidadSolicitada() - d.getCantidad(), d.getPrecioUnitario(), d.getSubtotal()))
                 .toList();
         return new PedidoResponse(venta.getId(), venta.getNumeroOrden(), venta.getFecha(),
                 cliente == null ? null : cliente.getId(), cliente == null ? null : cliente.getNombre(),
