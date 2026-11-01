@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.Lock;
@@ -35,6 +36,10 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
             GROUP BY d.producto.id,d.producto.nombre,d.producto.marca ORDER BY SUM(d.cantidad) DESC,d.producto.id
             """)
     List<ProductoClienteResponse> findProductosCliente(@Param("clienteId") Long clienteId);
+
+    @EntityGraph(attributePaths = {"cliente", "detalles", "detalles.producto"})
+    @Query("SELECT DISTINCT v FROM Venta v WHERE v.id IN :ids")
+    List<Venta> findConDetallesByIds(@Param("ids") List<Long> ids);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT v FROM Venta v WHERE v.id = :id")

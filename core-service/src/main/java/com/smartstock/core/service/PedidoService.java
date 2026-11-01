@@ -67,15 +67,15 @@ public class PedidoService {
             var producto = productos.findById(item.getKey()).filter(p -> Boolean.TRUE.equals(p.getActivo()))
                     .orElseThrow(() -> new RecursoNoEncontradoException("Producto " + item.getKey() + " no encontrado"));
             var detalle = new DetalleVenta(producto, item.getValue(), producto.getPrecio());
-            venta.agregarDetalle(detalle);
             subtotal = subtotal.add(detalle.getSubtotal());
+            detalle.setCantidadEntregada(0);
+            venta.agregarDetalle(detalle);
         }
         if (subtotal.compareTo(new BigDecimal("9999999999.99")) > 0) {
             throw new NegocioException("El importe del pedido supera el máximo permitido");
         }
-        venta.setSubtotal(subtotal.setScale(2, RoundingMode.HALF_UP));
-        venta.setTotal(subtotal.multiply(BigDecimal.ONE.subtract(venta.getDescuentoPct().movePointLeft(2)))
-                .setScale(2, RoundingMode.HALF_UP));
+        venta.setSubtotal(BigDecimal.ZERO.setScale(2));
+        venta.setTotal(BigDecimal.ZERO.setScale(2));
         servicioVentas.asignarNumeroOrden(venta);
         return PedidoResponse.desde(ventas.save(venta));
     }
@@ -90,7 +90,23 @@ public class PedidoService {
         var usuario = usuario(email);
         var bloqueados = servicioVentas.bloquearProductos(venta.getDetalles().stream()
                 .map(d -> d.getProducto().getId()).toList());
+        boolean hayEntrega = false;
         var advertencias = new ArrayList<String>();
+        for (var detalle : venta.getDetalles()) {
+            var producto = bloqueados.get(detalle.getProducto().getId());
+            int entregada = Math.min(detalle.getCantidadSolicitada(), producto.getStockActual());
+            detalle.setCantidadEntregada(entregada);
+            hayEntrega |= entregada > 0;
+            int faltante = detalle.getCantidadSolicitada() - entregada;
+            if (faltante > 0) {
+                advertencias.add("Producto " + producto.getId() + " (" + producto.getNombre() + "): faltan "
+                        + faltante + " unidades (solicitadas: " + detalle.getCantidadSolicitada()
+                        + ", entregadas: " + entregada + ")");
+            }
+        }
+        if (!hayEntrega) {
+            throw new NegocioException("Ningún producto tiene stock disponible para confirmar el pedido");
+        }
         var salidas = servicioVentas.descontarStock(venta, usuario, bloqueados);
         for (var salida : salidas) {
             var producto = salida.getProducto();
@@ -99,6 +115,11 @@ public class PedidoService {
                         + "): stock " + producto.getStockActual() + " menor o igual al mínimo " + producto.getStockMinimo());
             }
         }
+        BigDecimal subtotal = venta.getDetalles().stream().map(DetalleVenta::getSubtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        venta.setSubtotal(subtotal.setScale(2, RoundingMode.HALF_UP));
+        venta.setTotal(subtotal.multiply(BigDecimal.ONE.subtract(venta.getDescuentoPct().movePointLeft(2)))
+                .setScale(2, RoundingMode.HALF_UP));
         venta.setEstado(EstadoPedido.CONFIRMADO);
         movimientos.saveAll(salidas);
         return PedidoResponse.desde(venta, advertencias);
@@ -120,17 +141,24 @@ public class PedidoService {
         if (LocalDate.MAX.equals(hasta)) {
             throw new NegocioException("La fecha hasta supera el máximo permitido");
         }
+        String numeroBuscado = numeroOrden == null ? "" : numeroOrden.trim();
         Specification<Venta> filtros = (root, query, cb) -> {
             var condiciones = new ArrayList<jakarta.persistence.criteria.Predicate>();
             if (estado != null) condiciones.add(cb.equal(root.get("estado"), estado));
             if (clienteId != null) condiciones.add(cb.equal(root.get("cliente").get("id"), clienteId));
             if (desde != null) condiciones.add(cb.greaterThanOrEqualTo(root.get("fecha"), desde.atStartOfDay()));
             if (hasta != null) condiciones.add(cb.lessThan(root.get("fecha"), hasta.plusDays(1).atStartOfDay()));
-            if (numeroOrden != null) condiciones.add(cb.equal(root.get("numeroOrden"), numeroOrden));
+            if (!numeroBuscado.isEmpty()) condiciones.add(cb.equal(root.get("numeroOrden"), numeroBuscado));
             return cb.and(condiciones.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
         var pagina = ventas.findAll(filtros, PageRequest.of(page, size, Sort.by("fecha", "id").descending()));
-        var contenido = pagina.getContent().stream().map(PedidoResponse::desde).toList();
+        java.util.Map<Long, PedidoResponse> porId = new java.util.HashMap<>();
+        if (!pagina.isEmpty()) {
+            var ids = pagina.getContent().stream().map(Venta::getId).toList();
+            // El fetch de colección completa solo esta página; nunca recibe Pageable.
+            ventas.findConDetallesByIds(ids).forEach(v -> porId.put(v.getId(), PedidoResponse.desde(v)));
+        }
+        var contenido = pagina.getContent().stream().map(v -> porId.get(v.getId())).toList();
         return new PaginaPedidosResponse(contenido, page, size, pagina.getTotalElements(), pagina.getTotalPages());
     }
 
