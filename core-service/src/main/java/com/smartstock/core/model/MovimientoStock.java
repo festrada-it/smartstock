@@ -45,6 +45,12 @@ public class MovimientoStock {
     @JoinColumn(name = "venta_id")
     private Venta venta;
 
+    @Column(name = "lote_id")
+    private Long loteId;
+
+    public Long getLoteId() { return loteId; }
+    public void setLoteId(Long loteId) { this.loteId = loteId; }
+
     private String observacion;
 
     protected MovimientoStock() {

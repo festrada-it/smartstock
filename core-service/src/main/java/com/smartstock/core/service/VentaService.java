@@ -37,13 +37,16 @@ public class VentaService {
     private final MovimientoStockRepository movimientoRepository;
     private final ClienteRepository clienteRepository;
 
+    private final LoteService loteService;
+
     public VentaService(VentaRepository ventaRepository, ProductoRepository productoRepository,
-                        UsuarioRepository usuarioRepository, MovimientoStockRepository movimientoRepository,ClienteRepository clienteRepository) {
+                        UsuarioRepository usuarioRepository, MovimientoStockRepository movimientoRepository,ClienteRepository clienteRepository, LoteService loteService) {
         this.ventaRepository = ventaRepository;
         this.productoRepository = productoRepository;
         this.usuarioRepository = usuarioRepository;
         this.movimientoRepository = movimientoRepository;
         this.clienteRepository=clienteRepository;
+        this.loteService = loteService;
     }
 
     /**
@@ -77,6 +80,7 @@ public class VentaService {
                 throw new NegocioException("Stock insuficiente para " + producto.getNombre()
                         + " (disponible: " + producto.getStockActual() + ", pedido: " + item.cantidad() + ")");
             }
+            loteService.ajustarDisponible(producto, -item.cantidad());
             producto.setStockActual(producto.getStockActual() - item.cantidad());
 
             DetalleVenta detalle = new DetalleVenta(producto, item.cantidad(), producto.getPrecio());
@@ -114,11 +118,13 @@ public class VentaService {
         List<MovimientoStock> movimientos = new ArrayList<>();
         for (DetalleVenta detalle : venta.getDetalles()) {
             Producto producto = productos.get(detalle.getProducto().getId());
+            loteService.asegurarApertura(producto);
             try {
                 producto.setStockActual(Math.addExact(producto.getStockActual(), detalle.getCantidad()));
             } catch (ArithmeticException e) {
                 throw new NegocioException("El stock de " + producto.getNombre() + " supera el máximo permitido");
             }
+            loteService.ajustarDisponible(producto, detalle.getCantidad());
             MovimientoStock movimiento = new MovimientoStock(producto, TipoMovimiento.AJUSTE,
                     detalle.getCantidad(), usuario);
             movimiento.setVenta(venta);

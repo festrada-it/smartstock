@@ -22,7 +22,10 @@ class ProductoGruposIntegracionTest {
     Long productoId;
     Long grupoId;
     @AfterEach void limpiar() {
-        if(productoId!=null) db.update("DELETE FROM productos WHERE id=?",productoId);
+        if(productoId!=null) {
+            db.update("DELETE FROM movimientos_stock WHERE producto_id=?",productoId);
+            db.update("DELETE FROM productos WHERE id=?",productoId);
+        }
         if(grupoId!=null) db.update("DELETE FROM categorias WHERE id=?",grupoId);
     }
     @Test void productoExponeMarcaProveedorGrupoYMinimoPorDefecto() {
