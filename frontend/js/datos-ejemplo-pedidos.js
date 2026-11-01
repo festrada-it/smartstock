@@ -1,6 +1,7 @@
 // Datos de ejemplo de pedidos mientras no se mergea #52 (#24) ni #25.
-// Respetan el contrato de docs/API-PEDIDOS.md: cabecera y detalle completos, envelope paginado,
-// confirmación todo-o-nada con advertencias de stock mínimo (stock <= mínimo), y los estados de #25.
+// Siguen docs/API-PEDIDOS.md con la regla del 01-11 (plan §10.3): crear exige stock de todas las líneas y lo
+// reserva; si falta, 400 con `faltantes` (nombres propuestos en la tarea 5.5) y se registra la venta perdida.
+// Confirmar no mueve stock; cancelar un PENDIENTE o CONFIRMADO lo devuelve. Advertencias si stock <= mínimo.
 // Necesita calcularTotales() de pedidos-fuente.js. Borrar este archivo y apagar
 // CONFIG.DATOS_EJEMPLO.pedidos cuando se mergeen #52 y #25.
 
@@ -10,6 +11,7 @@ const PedidosEjemplo = (() => {
     let clientes = new Map();
     let siguienteId = 1;
     let siguienteFactura = 1;
+    const ventasPerdidas = [];
     const hoy = () => new Date().toISOString().slice(0, 10);
     const responder = valor => new Promise(resolver => setTimeout(() => resolver(structuredClone(valor)), 150));
 
@@ -37,6 +39,16 @@ const PedidosEjemplo = (() => {
             porProducto.set(productoId, linea);
         }
         const items = [...porProducto.values()].map(l => ({ ...l, subtotal: Math.round(l.cantidad * l.precioUnitario * 100) / 100 }));
+        // Sin stock suficiente no se crea el pedido: se registra la venta perdida del faltante de cada línea.
+        const faltantes = items
+            .map(l => ({ l, disponible: catalogo.get(l.productoId).stockActual }))
+            .filter(({ l, disponible }) => l.cantidad > disponible)
+            .map(({ l, disponible }) => ({ productoId: l.productoId, producto: l.producto, cantidadPedida: l.cantidad, disponible, faltante: l.cantidad - disponible }));
+        if (faltantes.length) {
+            faltantes.forEach(f => ventasPerdidas.push({ fecha, clienteId: cliente.id, ...f, precioUnitario: porProducto.get(f.productoId).precioUnitario }));
+            throw Object.assign(new Error(`Stock insuficiente: ${faltantes.map(f => `${f.producto} (pedido ${f.cantidadPedida}, disponible ${f.disponible})`).join('; ')}`),
+                { status: 400, datos: { faltantes } });
+        }
         const totales = calcularTotales(items, descuentoPct);
         const id = siguienteId++;
         return {
@@ -44,8 +56,22 @@ const PedidosEjemplo = (() => {
             clienteId: cliente.id, cliente: cliente.nombre, clienteCalidad: cliente.calidad, clienteClasificacion: cliente.clasificacion,
             formaPago: datos.formaPago, descuentoPct, conDescuento: descuentoPct > 0, ...totales,
             fechaEnvio: datos.fechaEnvio || null, estado: 'PENDIENTE', estadoEntrega: null, numeroFactura: null, items,
+            advertencias: reservar(items),
         };
     }
+
+    /** Descuenta el stock de las líneas (reserva al crear) y devuelve las advertencias de stock mínimo. */
+    function reservar(items) {
+        const advertencias = [];
+        for (const l of items) {
+            const p = catalogo.get(l.productoId);
+            p.stockActual -= l.cantidad;
+            if (p.stockActual <= p.stockMinimo) advertencias.push(`${p.nombre} quedó con stock ${p.stockActual}, en o por debajo del mínimo ${p.stockMinimo}`);
+        }
+        return advertencias;
+    }
+
+    const devolverStock = pedido => pedido.items.forEach(l => { catalogo.get(l.productoId).stockActual += l.cantidad; });
 
     function buscar(id) {
         const pedido = pedidos.find(p => p.id === Number(id));
@@ -59,21 +85,10 @@ const PedidosEjemplo = (() => {
 
     const conEntrega = p => ({ ...p, estadoEntrega: estadoEntrega(p) });
 
+    // Confirmar = el cliente aceptó la orden: no mueve stock (ya se reservó al crear).
     function confirmarInterno(pedido) {
         exigirEstado(pedido, 'PENDIENTE');
-        // Todo o nada (docs/API-PEDIDOS.md): si falta stock de algún producto, no se descuenta nada.
-        for (const l of pedido.items) {
-            const p = catalogo.get(l.productoId);
-            if (p.stockActual < l.cantidad) throw new Error(`Stock insuficiente para ${p.nombre} (disponible: ${p.stockActual}, pedido: ${l.cantidad})`);
-        }
-        const advertencias = [];
-        for (const l of pedido.items) {
-            const p = catalogo.get(l.productoId);
-            p.stockActual -= l.cantidad;
-            if (p.stockActual <= p.stockMinimo) advertencias.push(`${p.nombre} quedó con stock ${p.stockActual}, en o por debajo del mínimo ${p.stockMinimo}`);
-        }
         pedido.estado = 'CONFIRMADO';
-        return advertencias;
     }
 
     return {
@@ -88,12 +103,12 @@ const PedidosEjemplo = (() => {
             const ejemplo = (i, estado, extra = {}) => {
                 const fecha = new Date(Date.now() - (6 - i) * 86400000).toISOString().slice(0, 10) + 'T10:30:00';
                 const items = [{ productoId: ps[i % ps.length].id, cantidad: 2 + i }, { productoId: ps[(i + 1) % ps.length].id, cantidad: 1 + i }];
-                const p = armar({ clienteId: cs[i % cs.length].id, formaPago: Object.keys(FORMAS_PAGO)[i % 4], descuentoPct: [0, 10, 5, 0, 20][i], items, ...extra }, fecha);
+                const { advertencias, ...p } = armar({ clienteId: cs[i % cs.length].id, formaPago: Object.keys(FORMAS_PAGO)[i % 4], descuentoPct: [0, 10, 5, 0, 20][i], items, ...extra }, fecha);
                 pedidos.push(p);
                 if (estado !== 'PENDIENTE' && estado !== 'CANCELADO') confirmarInterno(p);
                 if (estado === 'ENVIADO' || estado === 'ENTREGADO') { p.estado = 'ENVIADO'; p.fechaEnvio ??= fecha.slice(0, 10); }
                 if (estado === 'ENTREGADO') { p.estado = 'ENTREGADO'; p.numeroFactura = `FAC-0001-${String(siguienteFactura++).padStart(8, '0')}`; }
-                if (estado === 'CANCELADO') p.estado = 'CANCELADO';
+                if (estado === 'CANCELADO') { devolverStock(p); p.estado = 'CANCELADO'; }
             };
             ['ENTREGADO', 'ENVIADO', 'CONFIRMADO', 'CANCELADO', 'PENDIENTE'].forEach((estado, i) => ejemplo(i, estado));
         },
@@ -114,14 +129,14 @@ const PedidosEjemplo = (() => {
         },
         obtener: async id => responder(conEntrega(buscar(id))),
         crear: async datos => {
-            const pedido = armar(datos, new Date().toISOString().slice(0, 19));
+            const { advertencias, ...pedido } = armar(datos, new Date().toISOString().slice(0, 19));
             pedidos.push(pedido);
-            return responder(conEntrega(pedido));
+            return responder({ ...conEntrega(pedido), advertencias });
         },
         confirmar: async id => {
             const pedido = buscar(id);
-            const advertencias = confirmarInterno(pedido);
-            return responder({ ...conEntrega(pedido), advertencias });
+            confirmarInterno(pedido);
+            return responder({ ...conEntrega(pedido), advertencias: [] });
         },
         enviar: async id => {
             const pedido = buscar(id);
@@ -140,7 +155,7 @@ const PedidosEjemplo = (() => {
         cancelar: async id => {
             const pedido = buscar(id);
             exigirEstado(pedido, 'PENDIENTE', 'CONFIRMADO');
-            if (pedido.estado === 'CONFIRMADO') pedido.items.forEach(l => { catalogo.get(l.productoId).stockActual += l.cantidad; });
+            devolverStock(pedido);
             pedido.estado = 'CANCELADO';
             return responder(conEntrega(pedido));
         },
