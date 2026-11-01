@@ -32,6 +32,8 @@ Todo nuestro universo de productos.
 
 **Vencimiento y fecha de entrega del proveedor** se cargan en cada **ingreso de mercadería (lote)**, porque un mismo producto puede tener cajas que vencen en fechas distintas. Las ventas descuentan primero el lote que vence antes (criterio **FEFO**).
 
+**Baja de productos:** el botón Eliminar da de baja el producto sin borrar su historial. El ADMIN puede ver los productos dados de baja y **reactivarlos** (#69, #70).
+
 ### 🚚 Proveedores
 A quiénes les compramos.
 
