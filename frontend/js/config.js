@@ -2,10 +2,6 @@
 const CONFIG = {
     CORE_API: 'http://localhost:8080/api',
     ANALYTICS_API: 'http://localhost:8000/api',
-    // Pantallas que usan datos de ejemplo hasta que exista su endpoint. Pasar a false al mergear:
-    // catalogo y grupos → #16
-    DATOS_EJEMPLO: {
-        catalogo: true,   // completa marca/proveedor/grupo si core todavía no los devuelve
-        grupos: true,     // días de alerta y umbral de rotación por grupo
-    },
+    // Pantallas que usan datos de ejemplo hasta que exista su endpoint. Pasar a false al mergear.
+    DATOS_EJEMPLO: {},
 };

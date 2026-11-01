@@ -8,7 +8,6 @@ const ESTADOS = {
 };
 
 const STOCK_MINIMO_POR_DEFECTO = 30;
-const ejemploCatalogo = Boolean(CONFIG.DATOS_EJEMPLO?.catalogo);
 
 let productos = [];
 let proveedores = [];
@@ -25,8 +24,6 @@ async function iniciar() {
         document.querySelectorAll('.solo-admin').forEach(el => el.classList.remove('d-none'));
     }
 
-    if (ejemploCatalogo) document.getElementById('aviso-ejemplo').classList.remove('d-none');
-
     document.getElementById('btn-nuevo').addEventListener('click', () => abrirModalProducto());
     document.getElementById('filtro-texto').addEventListener('input', renderTabla);
     document.getElementById('filtro-categoria').addEventListener('change', renderTabla);
@@ -35,9 +32,7 @@ async function iniciar() {
     document.getElementById('form-producto').addEventListener('submit', guardarProducto);
     document.getElementById('form-ingreso').addEventListener('submit', registrarIngreso);
 
-    // Los proveedores van antes que los productos: los datos de ejemplo necesitan sus ids reales.
-    await Promise.all([cargarCategorias(), cargarProveedores()]);
-    await cargarProductos();
+    await Promise.all([cargarCategorias(), cargarProveedores(), cargarProductos()]);
 }
 
 async function cargarProveedores() {
@@ -60,8 +55,7 @@ async function cargarCategorias() {
 
 async function cargarProductos() {
     try {
-        const respuesta = await coreApi('/productos');
-        productos = ejemploCatalogo ? respuesta.map(p => CatalogoEjemplo.completar(p, proveedores)) : respuesta;
+        productos = await coreApi('/productos');
         renderTabla();
     } catch (e) {
         mostrarMensaje(`No se pudieron cargar los productos: ${e.message}`, 'danger');
