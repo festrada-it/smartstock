@@ -82,6 +82,8 @@ roles y JSON. Toda cantidad entregada positiva consume lotes con disponible
 mayor que cero, por `fecha_vencimiento ASC NULLS LAST, id ASC`. Se incluyen
 vencimientos pasados: no existe una política aprobada que los excluya. Los
 renglones entregados con cantidad cero no consumen ni generan movimientos.
+La confirmación informa una advertencia de stock mínimo por producto, aunque
+la entrega tome mercadería de varios lotes.
 
 Primero se bloquean todos los productos por id ascendente; luego sus lotes en
 ese mismo orden de productos y orden FEFO. Cada fracción se guarda en

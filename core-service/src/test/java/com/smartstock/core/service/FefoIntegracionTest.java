@@ -9,14 +9,22 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.smartstock.core.security.JwtService;
+import com.smartstock.core.model.Usuario;
+import com.smartstock.core.model.Rol;
 import com.smartstock.core.dto.VentaRequest;
 import com.smartstock.core.exception.NegocioException;
 
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @EnabledIfEnvironmentVariable(named = "SMARTSTOCK_INTEGRACION", matches = "true")
 class FefoIntegracionTest {
     @Autowired VentaService ventas;
     @Autowired JdbcTemplate db;
+    @Autowired TestRestTemplate http;
+    @Autowired JwtService jwt;
     Long producto;
     String email;
     List<Long> productos = new ArrayList<>();
@@ -61,7 +69,7 @@ class FefoIntegracionTest {
         assertEquals(List.of(pronto, tarde), db.queryForList("SELECT lote_id FROM movimientos_stock WHERE venta_id=? AND tipo='AJUSTE' ORDER BY id", Long.class, venta));
         assertThrows(NegocioException.class, () -> ventas.anular(venta, email)); invariante();
     }
-    @Test void ordenaVencidosEmpatesYNullAlFinalYOmitieAgotados() {
+    @Test void ordenaVencidosEmpatesYNullAlFinalYOmiteAgotados() {
         Long sinFecha = lote(producto, 2, null, true);
         Long empatado1 = lote(producto, 2, hoy, false);
         Long vencido = lote(producto, 1, hoy.minusDays(3), false);
@@ -97,6 +105,75 @@ class FefoIntegracionTest {
         assertEquals(1, disponible(primero));
         assertEquals(4, db.queryForObject("SELECT SUM(cantidad) FROM consumos_lote WHERE lote_id=?", Integer.class, primero)); invariante();
     }
+    @Test void confirmarGeneraUnaAdvertenciaDeMinimoPorProductoAunqueConsumaDosLotes() {
+        lote(producto, 2, hoy, true); lote(producto, 3, hoy.plusDays(1), false);
+        var creado = crearPedido(List.of(Map.of("productoId", producto, "cantidad", 6)));
+        assertEquals(201, creado.getStatusCode().value());
+        var confirmado = pedir("/api/pedidos/" + creado.getBody().get("id").asLong() + "/confirmar", null);
+        assertEquals(200, confirmado.getStatusCode().value());
+        assertEquals(5, confirmado.getBody().get("items").get(0).get("cantidadEntregada").asInt());
+        long advertenciasMinimo = java.util.stream.StreamSupport.stream(confirmado.getBody().get("advertencias").spliterator(), false)
+                .filter(a -> a.asText().contains("menor o igual al mínimo")).count();
+        assertEquals(1, advertenciasMinimo);
+        invariante();
+    }
+
+    @Test void confirmacionParcialConsumeSoloEntregadoYCancelaUnaVezEnLosLotesOriginales() throws Exception {
+        Long tarde = lote(producto, 3, hoy.plusDays(5), true);
+        Long pronto = lote(producto, 2, hoy, false);
+        Long sinStock = producto(); lote(sinStock, 0, null, true);
+        var creado = crearPedido(List.of(Map.of("productoId", producto, "cantidad", 7), Map.of("productoId", sinStock, "cantidad", 2)));
+        assertEquals(201, creado.getStatusCode().value());
+        Long id = creado.getBody().get("id").asLong();
+        assertTrue(creado.getBody().get("items").get(0).has("cantidadEntregada"));
+        assertEquals(0, creado.getBody().get("items").get(0).get("cantidadEntregada").asInt());
+        assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM consumos_lote c JOIN detalle_venta d ON d.id=c.detalle_venta_id WHERE d.venta_id=?", Integer.class, id));
+        var confirmado = pedir("/api/pedidos/" + id + "/confirmar", null);
+        assertEquals(200, confirmado.getStatusCode().value());
+        assertEquals("CONFIRMADO", confirmado.getBody().get("estado").asText());
+        assertEquals(45, confirmado.getBody().get("total").asDouble());
+        assertEquals(7, confirmado.getBody().get("items").get(0).get("cantidadSolicitada").asInt());
+        assertEquals(5, confirmado.getBody().get("items").get(0).get("cantidadEntregada").asInt());
+        assertEquals(2, confirmado.getBody().get("items").get(0).get("faltante").asInt());
+        assertEquals(0, confirmado.getBody().get("items").get(1).get("cantidadEntregada").asInt());
+        assertEquals(List.of(pronto, tarde), db.queryForList("SELECT c.lote_id FROM consumos_lote c JOIN detalle_venta d ON d.id=c.detalle_venta_id WHERE d.venta_id=? ORDER BY c.id", Long.class, id));
+        assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM movimientos_stock WHERE venta_id=? AND producto_id=?", Integer.class, id, sinStock));
+        invariante();
+        CountDownLatch inicio = new CountDownLatch(1);
+        try (var ejecutor = Executors.newFixedThreadPool(2)) {
+            Callable<Integer> tarea = () -> { inicio.await(); return pedir("/api/pedidos/" + id + "/cancelar", null).getStatusCode().value(); };
+            var a = ejecutor.submit(tarea); var b = ejecutor.submit(tarea); inicio.countDown();
+            assertEquals(Set.of(200, 400), Set.of(a.get(20, TimeUnit.SECONDS), b.get(20, TimeUnit.SECONDS)));
+        }
+        assertEquals(3, disponible(tarde)); assertEquals(2, disponible(pronto));
+        assertEquals(List.of(2, 3), db.queryForList("SELECT cantidad FROM movimientos_stock WHERE venta_id=? AND tipo='AJUSTE' ORDER BY id", Integer.class, id));
+        assertEquals(2, db.queryForObject("SELECT COUNT(*) FROM consumos_lote c JOIN detalle_venta d ON d.id=c.detalle_venta_id WHERE d.venta_id=?", Integer.class, id));
+        assertTrue(db.queryForList("SELECT observacion FROM movimientos_stock WHERE venta_id=? AND tipo='AJUSTE'", String.class, id).stream().allMatch(o -> o.equals("Cancelación de pedido " + confirmado.getBody().get("numeroOrden").asText())));
+        invariante();
+    }
+    @Test void confirmacionConLotesInconsistentesRevierteEntregadosYConsumosDeTodasLasLineas() {
+        Long primero = lote(producto, 3, hoy, true);
+        Long segundo = producto(); lote(segundo, 1, hoy, true);
+        db.update("UPDATE productos SET stock_actual=3 WHERE id=?", segundo);
+        var creado = crearPedido(List.of(Map.of("productoId", producto, "cantidad", 2), Map.of("productoId", segundo, "cantidad", 2)));
+        assertEquals(201, creado.getStatusCode().value()); Long id = creado.getBody().get("id").asLong();
+        assertEquals(400, pedir("/api/pedidos/" + id + "/confirmar", null).getStatusCode().value());
+        assertEquals("PENDIENTE", db.queryForObject("SELECT estado FROM ventas WHERE id=?", String.class, id));
+        assertEquals(0, db.queryForObject("SELECT SUM(cantidad) FROM detalle_venta WHERE venta_id=?", Integer.class, id));
+        assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM consumos_lote c JOIN detalle_venta d ON d.id=c.detalle_venta_id WHERE d.venta_id=?", Integer.class, id));
+        assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM movimientos_stock WHERE venta_id=?", Integer.class, id));
+        assertEquals(3, disponible(primero));
+    }
+    ResponseEntity<JsonNode> crearPedido(List<Map<String, Object>> items) {
+        Long cliente = db.queryForObject("SELECT MIN(id) FROM clientes WHERE activo", Long.class);
+        return pedir("/api/pedidos", Map.of("clienteId", cliente, "formaPago", "EFECTIVO", "descuentoPct", 10, "items", items));
+    }
+    ResponseEntity<JsonNode> pedir(String ruta, Object datos) {
+        var usuario = new Usuario(); usuario.setEmail(email); usuario.setNombre("FEFO"); usuario.setRol(Rol.ADMIN);
+        var headers = new HttpHeaders(); headers.setBearerAuth(jwt.generar(usuario)); headers.setContentType(MediaType.APPLICATION_JSON);
+        return http.exchange(ruta, HttpMethod.POST, new HttpEntity<>(datos, headers), JsonNode.class);
+    }
+
     @Test void historicaSinConsumosDevuelveApertura() {
         Long apertura = lote(producto, 5, null, true);
         Long venta = vender(2);

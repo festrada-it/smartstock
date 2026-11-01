@@ -27,6 +27,8 @@ class AnulacionServiceTest {
     @Mock UsuarioRepository usuarios;
     @Mock MovimientoStockRepository movimientos;
     @Mock LoteService loteService;
+    @Mock LoteRepository lotes;
+    @Mock ConsumoLoteRepository consumos;
     @InjectMocks VentaService servicio;
 
     private Venta venta;
@@ -45,6 +47,7 @@ class AnulacionServiceTest {
         producto.setId(1L);
         producto.setNombre("Yerba");
         producto.setStockActual(8);
+        apertura(producto);
         venta.agregarDetalle(new DetalleVenta(producto, 2, new BigDecimal("10.00")));
     }
 
@@ -104,16 +107,24 @@ class AnulacionServiceTest {
         otro.setId(2L);
         otro.setNombre("Arroz");
         otro.setStockActual(5);
+        apertura(otro);
         venta.getDetalles().addFirst(new DetalleVenta(otro, 1, BigDecimal.ONE));
         when(ventas.findByIdParaActualizar(7L)).thenReturn(Optional.of(venta));
         when(usuarios.findByEmail("admin@example.com")).thenReturn(Optional.of(admin));
         when(productos.findByIdParaActualizar(1L)).thenReturn(Optional.of(producto));
         when(productos.findByIdParaActualizar(2L)).thenReturn(Optional.of(otro));
         servicio.anular(7L, "admin@example.com");
-        var orden = inOrder(productos);
+        var orden = inOrder(productos, lotes);
         orden.verify(productos).findByIdParaActualizar(1L);
         orden.verify(productos).findByIdParaActualizar(2L);
+        orden.verify(lotes).bloquearPorProducto(1L);
+        orden.verify(lotes).bloquearPorProducto(2L);
         assertEquals(6, otro.getStockActual());
+    }
+
+    private void apertura(Producto producto) {
+        producto.getLotes().add(new Lote(producto, null, producto.getStockActual(), null,
+                java.time.LocalDate.now(), BigDecimal.ZERO, true));
     }
 
     @Test

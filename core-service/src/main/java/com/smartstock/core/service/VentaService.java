@@ -137,7 +137,6 @@ public class VentaService {
         var disponibles = bloquearLotes(productos, true);
         var movimientos = new ArrayList<MovimientoStock>();
         for (var detalle : venta.getDetalles()) {
-            if (detalle.getCantidad() == 0) continue;
             var producto = productos.get(detalle.getProducto().getId());
             if (!Boolean.TRUE.equals(producto.getActivo())) {
                 throw new RecursoNoEncontradoException("Producto " + producto.getId() + " no encontrado");

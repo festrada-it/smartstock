@@ -108,8 +108,7 @@ public class PedidoService {
             throw new NegocioException("Ningún producto tiene stock disponible para confirmar el pedido");
         }
         var salidas = servicioVentas.descontarStock(venta, usuario, bloqueados);
-        for (var salida : salidas) {
-            var producto = salida.getProducto();
+        for (var producto : salidas.stream().map(MovimientoStock::getProducto).distinct().toList()) {
             if (producto.getStockActual() <= producto.getStockMinimo()) {
                 advertencias.add("Producto " + producto.getId() + " (" + producto.getNombre()
                         + "): stock " + producto.getStockActual() + " menor o igual al mínimo " + producto.getStockMinimo());
