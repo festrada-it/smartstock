@@ -20,6 +20,9 @@ import com.smartstock.core.repository.ProductoRepository;
 import com.smartstock.core.repository.MovimientoStockRepository;
 import com.smartstock.core.repository.ProveedorRepository;
 import com.smartstock.core.model.Proveedor;
+import com.smartstock.core.model.MovimientoStock;
+import com.smartstock.core.model.TipoMovimiento;
+import com.smartstock.core.dto.LoteResponse;
 
 @Service
 public class ProductoService {
@@ -29,12 +32,15 @@ public class ProductoService {
     private final MovimientoStockRepository movimientoRepository;
     private final ProveedorRepository proveedorRepository;
 
+    private final LoteService loteService;
+
     public ProductoService(ProductoRepository productoRepository, CategoriaRepository categoriaRepository,
-                           MovimientoStockRepository movimientoRepository,ProveedorRepository proveedorRepository) {
+                           MovimientoStockRepository movimientoRepository,ProveedorRepository proveedorRepository, LoteService loteService) {
         this.productoRepository = productoRepository;
         this.categoriaRepository = categoriaRepository;
         this.movimientoRepository = movimientoRepository;
         this.proveedorRepository=proveedorRepository;
+        this.loteService = loteService;
     }
 
     /** Conserva el historial incluso después de la baja lógica del producto. */
@@ -79,23 +85,44 @@ public class ProductoService {
         }
         Producto producto = new Producto();
         aplicar(request, producto);
-        return ProductoResponse.desde(productoRepository.save(producto));
+        productoRepository.save(producto);
+        loteService.asegurarApertura(producto);
+        return ProductoResponse.desde(producto);
     }
 
     @Transactional
     public ProductoResponse actualizar(Long id, ProductoRequest request) {
-        Producto producto = buscarActivo(id);
+        Producto producto = buscarActivoParaActualizar(id);
+        int anterior = producto.getStockActual();
+        loteService.asegurarApertura(producto);
         if (productoRepository.existsBySkuAndIdNot(request.sku(), id)) {
             throw new NegocioException("Ya existe otro producto con SKU " + request.sku());
         }
         aplicar(request, producto);
+        int diferencia = producto.getStockActual() - anterior;
+        loteService.ajustarDisponible(producto, diferencia);
+        if (diferencia != 0) {
+            MovimientoStock movimiento = new MovimientoStock(producto, TipoMovimiento.AJUSTE, diferencia, null);
+            movimiento.setObservacion("Ajuste de stock desde catálogo");
+            movimientoRepository.save(movimiento);
+        }
         return ProductoResponse.desde(producto);
     }
 
     /** Baja lógica: el producto se desactiva pero se conserva su historial de ventas. */
     @Transactional
     public void eliminar(Long id) {
-        buscarActivo(id).setActivo(false);
+        buscarActivoParaActualizar(id).setActivo(false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<LoteResponse> lotes(Long id, boolean todos) {
+        return loteService.consultar(id, todos);
+    }
+
+    private Producto buscarActivoParaActualizar(Long id) {
+        return productoRepository.findByIdParaActualizar(id).filter(Producto::getActivo)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Producto " + id + " no encontrado"));
     }
 
     private Producto buscarActivo(Long id) {

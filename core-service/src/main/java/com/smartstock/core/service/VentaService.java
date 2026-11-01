@@ -44,16 +44,18 @@ public class VentaService {
     private final ClienteRepository clienteRepository;
 
     private final JdbcTemplate db;
+    private final LoteService loteService;
 
     public VentaService(VentaRepository ventaRepository, ProductoRepository productoRepository,
                         UsuarioRepository usuarioRepository, MovimientoStockRepository movimientoRepository,
-                        ClienteRepository clienteRepository, JdbcTemplate db) {
+                        ClienteRepository clienteRepository, JdbcTemplate db, LoteService loteService) {
         this.ventaRepository = ventaRepository;
         this.productoRepository = productoRepository;
         this.usuarioRepository = usuarioRepository;
         this.movimientoRepository = movimientoRepository;
         this.clienteRepository = clienteRepository;
         this.db = db;
+        this.loteService = loteService;
     }
 
     /**
@@ -119,11 +121,13 @@ public class VentaService {
         List<MovimientoStock> movimientos = new ArrayList<>();
         for (DetalleVenta detalle : venta.getDetalles()) {
             Producto producto = productos.get(detalle.getProducto().getId());
+            loteService.asegurarApertura(producto);
             try {
                 producto.setStockActual(Math.addExact(producto.getStockActual(), detalle.getCantidad()));
             } catch (ArithmeticException e) {
                 throw new NegocioException("El stock de " + producto.getNombre() + " supera el máximo permitido");
             }
+            loteService.ajustarDisponible(producto, detalle.getCantidad());
             MovimientoStock movimiento = new MovimientoStock(producto, TipoMovimiento.AJUSTE,
                     detalle.getCantidad(), usuario);
             movimiento.setVenta(venta);
@@ -146,6 +150,7 @@ public class VentaService {
                 throw new NegocioException("Stock insuficiente para " + producto.getNombre()
                         + " (disponible: " + producto.getStockActual() + ", pedido: " + detalle.getCantidad() + ")");
             }
+            loteService.ajustarDisponible(producto, -detalle.getCantidad());
             producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
             var movimiento = new MovimientoStock(producto, TipoMovimiento.VENTA, -detalle.getCantidad(), usuario);
             movimiento.setVenta(venta);

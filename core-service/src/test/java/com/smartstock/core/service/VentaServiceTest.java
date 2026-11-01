@@ -43,6 +43,7 @@ class VentaServiceTest {
 
     @Mock private com.smartstock.core.repository.ClienteRepository clienteRepository;
     @Mock private org.springframework.jdbc.core.JdbcTemplate db;
+    @Mock LoteService loteService;
     @InjectMocks private VentaService ventaService;
 
     private Producto yerba;

@@ -80,6 +80,8 @@ class ControllersTest {
                 Arguments.of("DELETE", "/api/proveedores/1", "", 204, false),
                 Arguments.of("GET", "/api/productos", "", 200, true),
                 Arguments.of("GET", "/api/productos/1", "", 200, true),
+                Arguments.of("GET", "/api/productos/1/lotes", "", 200, true),
+                Arguments.of("GET", "/api/productos/1/lotes?todos=true", "", 200, true),
                 Arguments.of("POST", "/api/productos", producto, 201, false),
                 Arguments.of("PUT", "/api/productos/1", producto, 200, false),
                 Arguments.of("DELETE", "/api/productos/1", "", 204, false),
@@ -213,6 +215,19 @@ class ControllersTest {
                 .contentType("application/json").content("{\"productoId\":1,\"cantidad\":-1}"))
                 .andExpect(status().isBadRequest());
         org.mockito.Mockito.verifyNoInteractions(ventas, compras);
+    }
+
+    @Test
+    void comprasDevuelvenValidacionesEnEspanol() throws Exception {
+        mvc.perform(post("/api/compras").header("Authorization", token(Rol.ADMIN))
+                .contentType("application/json").content("{\"productoId\":1,\"cantidad\":2,\"costoUnitario\":-1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("El costo no puede ser negativo")));
+        mvc.perform(post("/api/compras").header("Authorization", token(Rol.ADMIN))
+                .contentType("application/json").content("{\"productoId\":1,\"cantidad\":0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("La cantidad debe ser mayor que cero")));
+        org.mockito.Mockito.verifyNoInteractions(compras);
     }
 
     @Test
