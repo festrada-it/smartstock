@@ -1,13 +1,17 @@
 package com.smartstock.core.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Comparator;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +19,8 @@ import com.smartstock.core.dto.VentaRequest;
 import com.smartstock.core.dto.VentaResponse;
 import com.smartstock.core.exception.NegocioException;
 import com.smartstock.core.exception.RecursoNoEncontradoException;
+import com.smartstock.core.model.Calidad;
+import com.smartstock.core.model.EstadoPedido;
 import com.smartstock.core.model.DetalleVenta;
 import com.smartstock.core.model.MovimientoStock;
 import com.smartstock.core.model.Producto;
@@ -37,13 +43,17 @@ public class VentaService {
     private final MovimientoStockRepository movimientoRepository;
     private final ClienteRepository clienteRepository;
 
+    private final JdbcTemplate db;
+
     public VentaService(VentaRepository ventaRepository, ProductoRepository productoRepository,
-                        UsuarioRepository usuarioRepository, MovimientoStockRepository movimientoRepository,ClienteRepository clienteRepository) {
+                        UsuarioRepository usuarioRepository, MovimientoStockRepository movimientoRepository,
+                        ClienteRepository clienteRepository, JdbcTemplate db) {
         this.ventaRepository = ventaRepository;
         this.productoRepository = productoRepository;
         this.usuarioRepository = usuarioRepository;
         this.movimientoRepository = movimientoRepository;
-        this.clienteRepository=clienteRepository;
+        this.clienteRepository = clienteRepository;
+        this.db = db;
     }
 
     /**
@@ -57,35 +67,27 @@ public class VentaService {
 
         Venta venta = new Venta();
         venta.setUsuario(vendedor);
-        if(request.clienteId()!=null) {
-            venta.setCliente(clienteRepository.findById(request.clienteId()).filter(Cliente::isActivo)
-                    .orElseThrow(()->new RecursoNoEncontradoException("Cliente "+request.clienteId()+" no encontrado")));
-        }
+        venta.setCliente(request.clienteId() == null ? consumidorFinal()
+                : clienteRepository.findById(request.clienteId()).filter(Cliente::isActivo)
+                        .orElseThrow(() -> new RecursoNoEncontradoException("Cliente " + request.clienteId() + " no encontrado")));
+        asignarNumeroOrden(venta);
         BigDecimal total = BigDecimal.ZERO;
-        List<MovimientoStock> movimientos = new ArrayList<>();
-
         // Todas las operaciones de varios productos toman los bloqueos en el mismo orden.
         Map<Long, Producto> productos = bloquearProductos(request.items().stream()
                 .map(VentaRequest.Item::productoId).toList());
         for (VentaRequest.Item item : request.items()) {
             Producto producto = productos.get(item.productoId());
-            if (!producto.getActivo()) {
-                throw new RecursoNoEncontradoException("Producto " + item.productoId() + " no encontrado");
-            }
-
-            if (producto.getStockActual() < item.cantidad()) {
-                throw new NegocioException("Stock insuficiente para " + producto.getNombre()
-                        + " (disponible: " + producto.getStockActual() + ", pedido: " + item.cantidad() + ")");
-            }
-            producto.setStockActual(producto.getStockActual() - item.cantidad());
-
             DetalleVenta detalle = new DetalleVenta(producto, item.cantidad(), producto.getPrecio());
             venta.agregarDetalle(detalle);
             total = total.add(detalle.getSubtotal());
-            movimientos.add(new MovimientoStock(producto, TipoMovimiento.VENTA, -item.cantidad(), vendedor));
         }
 
-        venta.setTotal(total);
+        if (total.compareTo(new BigDecimal("9999999999.99")) > 0) {
+            throw new NegocioException("El importe de la venta supera el máximo permitido");
+        }
+        venta.setSubtotal(total.setScale(2, RoundingMode.HALF_UP));
+        venta.setTotal(total.setScale(2, RoundingMode.HALF_UP));
+        var movimientos = descontarStock(venta, vendedor, productos);
         Venta guardada = ventaRepository.save(venta);
         movimientos.forEach(m -> m.setVenta(guardada));
         movimientoRepository.saveAll(movimientos);
@@ -94,25 +96,45 @@ public class VentaService {
 
     @Transactional(readOnly = true)
     public List<VentaResponse> ventasDelDia() {
-        return ventaRepository.findDesdeConDetalles(LocalDate.now().atStartOfDay()).stream()
+        return ventaRepository.findDesdeConDetalles(LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")).atStartOfDay()).stream()
                 .map(VentaResponse::desde)
                 .toList();
     }
 
-    /** La venta permanece para auditoría; el bloqueo evita devolver el stock dos veces. */
+    /** Alias temporal: comparte la cancelación y conserva el DTO legacy. */
     @Transactional
     public VentaResponse anular(Long id, String emailUsuario) {
+        return VentaResponse.desde(cancelar(id, emailUsuario));
+    }
+
+    Venta cancelar(Long id, String emailUsuario) {
         Venta venta = ventaRepository.findByIdParaActualizar(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Venta " + id + " no encontrada"));
-        if (venta.isAnulada()) {
-            throw new NegocioException("La venta " + id + " ya está anulada");
+                .orElseThrow(() -> new RecursoNoEncontradoException("Pedido " + id + " no encontrado"));
+        if (venta.getEstado() == EstadoPedido.CANCELADO) {
+            throw new NegocioException("El pedido " + id + " ya está cancelado");
+        }
+        if (venta.getEstado() != EstadoPedido.PENDIENTE && venta.getEstado() != EstadoPedido.CONFIRMADO) {
+            throw new NegocioException("Solo se puede cancelar un pedido PENDIENTE o CONFIRMADO");
+        }
+        if (venta.getEstado() == EstadoPedido.PENDIENTE) {
+            venta.setEstado(EstadoPedido.CANCELADO);
+            return venta;
         }
         Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Usuario " + emailUsuario + " no encontrado"));
         Map<Long, Producto> productos = bloquearProductos(venta.getDetalles().stream()
                 .map(d -> d.getProducto().getId()).toList());
+        var movimientos = restituirStock(venta, usuario, productos);
+        movimientos.forEach(m -> m.setObservacion("Cancelación de pedido " + venta.getNumeroOrden()));
+        venta.setEstado(EstadoPedido.CANCELADO);
+        movimientoRepository.saveAll(movimientos);
+        return venta;
+    }
+
+    List<MovimientoStock> restituirStock(Venta venta, Usuario usuario, Map<Long, Producto> productos) {
         List<MovimientoStock> movimientos = new ArrayList<>();
         for (DetalleVenta detalle : venta.getDetalles()) {
+            if (detalle.getCantidad() == 0) continue;
             Producto producto = productos.get(detalle.getProducto().getId());
             try {
                 producto.setStockActual(Math.addExact(producto.getStockActual(), detalle.getCantidad()));
@@ -122,15 +144,52 @@ public class VentaService {
             MovimientoStock movimiento = new MovimientoStock(producto, TipoMovimiento.AJUSTE,
                     detalle.getCantidad(), usuario);
             movimiento.setVenta(venta);
-            movimiento.setObservacion("Anulación de venta " + id);
             movimientos.add(movimiento);
         }
-        venta.setAnulada(true);
-        movimientoRepository.saveAll(movimientos);
-        return VentaResponse.desde(venta);
+        return movimientos;
     }
 
-    private Map<Long, Producto> bloquearProductos(List<Long> ids) {
+    List<MovimientoStock> descontarStock(Venta venta, Usuario usuario, Map<Long, Producto> productos) {
+        var movimientos = new ArrayList<MovimientoStock>();
+        for (var detalle : venta.getDetalles()) {
+            var producto = productos.get(detalle.getProducto().getId());
+            if (!Boolean.TRUE.equals(producto.getActivo())) {
+                throw new RecursoNoEncontradoException("Producto " + producto.getId() + " no encontrado");
+            }
+            if (detalle.getCantidad() == 0) continue;
+            if (producto.getStockActual() < detalle.getCantidad()) {
+                throw new NegocioException("Stock insuficiente para " + producto.getNombre()
+                        + " (disponible: " + producto.getStockActual() + ", pedido: " + detalle.getCantidad() + ")");
+            }
+            producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
+            var movimiento = new MovimientoStock(producto, TipoMovimiento.VENTA, -detalle.getCantidad(), usuario);
+            movimiento.setVenta(venta);
+            movimientos.add(movimiento);
+        }
+        return movimientos;
+    }
+
+    void asignarNumeroOrden(Venta venta) {
+        venta.setNumeroOrden(String.format(Locale.ROOT, "OC-%04d-%06d", venta.getFecha().getYear(),
+                ventaRepository.siguienteNumeroOrden()));
+    }
+
+    private Cliente consumidorFinal() {
+        var existente = clienteRepository.findFirstByNombreAndActivoTrueOrderByIdAsc("Consumidor final");
+        if (existente.isPresent()) return existente.get();
+        // El lock transaccional evita duplicar el fallback entre varias instancias del core.
+        db.execute("SELECT pg_advisory_xact_lock(24, 1)");
+        return clienteRepository.findFirstByNombreAndActivoTrueOrderByIdAsc("Consumidor final")
+                .orElseGet(() -> {
+                    var cliente = new Cliente();
+                    cliente.setNombre("Consumidor final");
+                    cliente.setCalidad(Calidad.REGULAR);
+                    cliente.setClasificacion(3);
+                    return clienteRepository.save(cliente);
+                });
+    }
+
+    Map<Long, Producto> bloquearProductos(List<Long> ids) {
         Map<Long, Producto> productos = new HashMap<>();
         ids.stream().distinct().sorted(Comparator.naturalOrder()).forEach(id ->
                 productos.put(id, productoRepository.findByIdParaActualizar(id)

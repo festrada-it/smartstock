@@ -38,6 +38,7 @@ class AnulacionServiceTest {
         admin.setNombre("Admin");
         venta = new Venta();
         venta.setId(7L);
+        venta.setNumeroOrden("OC-2026-000007");
         venta.setUsuario(admin);
         venta.setTotal(new BigDecimal("20.00"));
         producto = new Producto();
@@ -68,8 +69,8 @@ class AnulacionServiceTest {
         assertEquals(TipoMovimiento.AJUSTE, movimiento.getTipo());
         assertSame(admin, movimiento.getUsuario());
         assertSame(venta, movimiento.getVenta());
-        assertEquals("Anulación de venta 7", movimiento.getObservacion());
-        verify(ventas, never()).delete(any());
+        assertEquals("Cancelación de pedido OC-2026-000007", movimiento.getObservacion());
+        verify(ventas, never()).delete(any(Venta.class));
     }
 
     @Test
@@ -84,7 +85,7 @@ class AnulacionServiceTest {
 
     @Test
     void rechazaSegundaAnulacionSinTocarStock() {
-        venta.setAnulada(true);
+        venta.setEstado(EstadoPedido.CANCELADO);
         when(ventas.findByIdParaActualizar(7L)).thenReturn(Optional.of(venta));
         assertThrows(NegocioException.class, () -> servicio.anular(7L, "admin@example.com"));
         assertEquals(8, producto.getStockActual());

@@ -71,8 +71,22 @@ class AnulacionIntegracionTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(jwt.generar(vendedor));
         var respuesta = http.exchange("/api/ventas/9223372036854775807/anular",
-                HttpMethod.POST, new HttpEntity<Void>(headers), Void.class);
+                HttpMethod.POST, new HttpEntity<Void>(headers), com.fasterxml.jackson.databind.JsonNode.class);
         assertEquals(HttpStatus.FORBIDDEN, respuesta.getStatusCode());
+        assertNotNull(respuesta.getBody(), "El 403 debe incluir el mensaje JSON");
+        assertEquals("No tenés permiso para realizar esta acción",respuesta.getBody().get("error").asText());
+        assertTrue(respuesta.getHeaders().getContentType().isCompatibleWith(org.springframework.http.MediaType.APPLICATION_JSON));
+        assertEquals(java.nio.charset.StandardCharsets.UTF_8,respuesta.getHeaders().getContentType().getCharset());
+    }
+
+    @Test
+    void sinTokenYTokenInvalidoConservan401SinMensaje403() {
+        var anonimo=http.getForEntity("/api/productos",String.class);
+        assertEquals(HttpStatus.UNAUTHORIZED,anonimo.getStatusCode());
+        assertNull(anonimo.getBody());
+        HttpHeaders headers=new HttpHeaders();headers.setBearerAuth("invalido");
+        var invalido=http.exchange("/api/productos",HttpMethod.GET,new HttpEntity<Void>(headers),String.class);
+        assertEquals(HttpStatus.UNAUTHORIZED,invalido.getStatusCode());assertNull(invalido.getBody());
     }
 
     @Test
@@ -86,7 +100,7 @@ class AnulacionIntegracionTest {
                     servicio.anular(id, email);
                     return true;
                 } catch (NegocioException e) {
-                    assertTrue(e.getMessage().contains("ya está anulada"));
+                    assertTrue(e.getMessage().contains("ya está cancelado"));
                     return false;
                 }
             };
