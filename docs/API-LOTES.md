@@ -75,18 +75,37 @@ el stock anterior a la operación y sin inventar una fecha de vencimiento.
 Las ediciones y bajas de catálogo bloquean primero la fila del producto;
 las operaciones de stock bloquean después los lotes por id.
 
-Hasta #21, las ventas y ajustes consumen disponible por id (puente transitorio,
-sin FEFO ni registros en consumos_lote). La anulación repone en la apertura.
-Esto conserva el total, pero todavía no rastrea el lote original de cada venta.
-La apertura admite disponible mayor al inicial por restituciones del histórico.
-Los lotes nuevos de compra conservan su proveedor, costo y fechas propios;
-el proveedor principal del catálogo no cambia al seleccionar otro al comprar.
+## Consumo FEFO y devolución (#21)
 
-#21 conecta FEFO en las ventas y la confirmación de pedidos: lotes disponibles
-por vencimiento/id, después del bloqueo del producto. Guarda cada consumo y
-la anulación/cancelación devuelve al lote original. Las operaciones anteriores
-a 07 sin consumos se restituyen al lote de apertura, con esa limitación
-documentada. El contrato de pedidos permanece compatible.
+`POST /api/ventas` y `POST /api/pedidos/{id}/confirmar` mantienen sus rutas,
+roles y JSON. Toda cantidad entregada positiva consume lotes con disponible
+mayor que cero, por `fecha_vencimiento ASC NULLS LAST, id ASC`. Se incluyen
+vencimientos pasados: no existe una política aprobada que los excluya. Los
+renglones entregados con cantidad cero no consumen ni generan movimientos.
+
+Primero se bloquean todos los productos por id ascendente; luego sus lotes en
+ese mismo orden de productos y orden FEFO. Cada fracción se guarda en
+`consumos_lote` con detalle de venta, lote y cantidad positiva, y genera un
+movimiento `VENTA` con cantidad negativa y `loteId`. Los detalles se persisten
+antes de sus consumos por la clave foránea; falta de stock o inconsistencia de
+lotes revierte venta, consumos, movimientos y stock en la misma transacción.
+
+La anulación de ventas y cancelación de pedidos confirmados/parciales devuelve
+cada fracción al lote original y genera `AJUSTE` positivo con `loteId`. Se
+conservan los consumos para auditoría. El bloqueo de venta impide una segunda
+devolución. Pedidos pendientes no restituyen stock. Los detalles históricos
+sin consumos (ventas anteriores a 07 o al despliegue FEFO) devuelven su cantidad
+al lote de apertura: no se puede reconstruir su origen. La apertura admite
+disponible mayor al inicial por esas restituciones.
+
+Los ajustes del catálogo siguen distribuyéndose por id, sin consumos de venta;
+compras y catálogo conservan `SUM(lotes.cantidad_disponible)=stock_actual`.
+No hay rutas nuevas ni cambios de campos JSON; `loteId` ya forma parte del
+historial paginado de movimientos.
+
+Dependencias de integración: PR #52 (pedidos y confirmación parcial), #54
+(lotes/compras) y #65 (cancelación de pedidos). El contrato de pedidos define
+`cantidadSolicitada` y `cantidad` entregada; FEFO descuenta esta última.
 
 En una base existente aplicar 07, sin borrar volúmenes. Si 08 de pedidos ya
 está aplicado, no se vuelve a ejecutar para instalar lotes. En bases nuevas los
