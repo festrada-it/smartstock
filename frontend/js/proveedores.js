@@ -13,6 +13,7 @@ const fuente = {
 let proveedores = [];
 let modalProveedor;
 let modalDetalle;
+const detalleAbierto = crearVigente();
 
 async function iniciar() {
     renderLayout(sesion);
@@ -84,6 +85,7 @@ function renderTabla() {
 }
 
 async function abrirDetalle(proveedor) {
+    detalleAbierto.abrir(proveedor.id);
     document.getElementById('detalle-nombre').textContent = proveedor.nombre;
     document.getElementById('detalle-datos').innerHTML = `
         <dt class="col-sm-4">Dirección</dt><dd class="col-sm-8">${escaparHtml(proveedor.direccion || '-')}</dd>
@@ -101,6 +103,7 @@ async function abrirDetalle(proveedor) {
 
     try {
         const productos = await fuente.productos(proveedor.id);
+        if (!detalleAbierto.esActual(proveedor.id)) return; // ya se abrió otro proveedor
         const listaMarcas = [...new Set(productos.map(p => p.marca).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
         marcas.innerHTML = listaMarcas.length
             ? listaMarcas.map(m => `<span class="badge rounded-pill text-bg-light tw-border">${escaparHtml(m)}</span>`).join('')
@@ -114,6 +117,7 @@ async function abrirDetalle(proveedor) {
                 </tr>`).join('')
             : '<tr><td colspan="3" class="text-center text-muted">Este proveedor todavía no abastece productos.</td></tr>';
     } catch (e) {
+        if (!detalleAbierto.esActual(proveedor.id)) return;
         cuerpo.innerHTML = `<tr><td colspan="3" class="text-center text-danger">${escaparHtml(e.message)}</td></tr>`;
     }
 }
