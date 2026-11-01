@@ -45,6 +45,7 @@ class ControllersTest {
     @MockBean AuthService auth;
     @MockBean ProductoService productos;
     @MockBean VentaService ventas;
+    @MockBean PedidoService pedidos;
     @MockBean CompraService compras;
     @MockBean UsuarioService usuarios;
     @MockBean ProveedorService proveedores;
@@ -57,6 +58,10 @@ class ControllersTest {
                 {"sku":"A1","nombre":"Yerba","precio":10,"costo":5,"stockActual":10,"stockMinimo":1}
                 """;
         return Stream.of(
+                Arguments.of("POST", "/api/pedidos", "{\"clienteId\":1,\"formaPago\":\"EFECTIVO\",\"items\":[{\"productoId\":1,\"cantidad\":2}]}", 201, true),
+                Arguments.of("GET", "/api/pedidos", "", 200, true),
+                Arguments.of("GET", "/api/pedidos/1", "", 200, true),
+                Arguments.of("POST", "/api/pedidos/1/confirmar", "", 200, true),
                 Arguments.of("GET", "/api/clientes", "", 200, true),
                 Arguments.of("GET", "/api/clientes/1", "", 200, true),
                 Arguments.of("GET", "/api/clientes/1/pedidos", "", 200, true),
