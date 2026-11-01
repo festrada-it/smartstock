@@ -130,12 +130,13 @@ async function guardarProducto(evento) {
     const id = document.getElementById('producto-id').value;
     const categoriaId = document.getElementById('producto-categoria').value;
     const proveedorId = document.getElementById('producto-proveedor').value;
-    // Se mandan siempre marca y proveedorId: core reemplaza los datos editables en el PUT (#16).
+    // Se mandan siempre marca y proveedorId (#16). Hoy el contrato no permite quitar el proveedor:
+    // "Sin proveedor" en una edición manda null y core conserva el que tenía.
     const datos = {
         sku: document.getElementById('producto-sku').value,
         nombre: document.getElementById('producto-nombre').value,
         categoriaId: categoriaId ? Number(categoriaId) : null,
-        marca: document.getElementById('producto-marca').value.trim() || null,
+        marca: marcaParaEnviar(document.getElementById('producto-marca').value, Boolean(id)),
         proveedorId: proveedorId ? Number(proveedorId) : null,
         precio: Number(document.getElementById('producto-precio').value),
         costo: Number(document.getElementById('producto-costo').value),
