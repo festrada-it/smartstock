@@ -3,6 +3,19 @@ BEGIN;
 CREATE SEQUENCE IF NOT EXISTS numero_orden_seq;
 CREATE SEQUENCE IF NOT EXISTS numero_factura_seq;
 
+ALTER TABLE detalle_venta ADD COLUMN IF NOT EXISTS cantidad_solicitada INTEGER;
+UPDATE detalle_venta SET cantidad_solicitada=cantidad WHERE cantidad_solicitada IS NULL;
+ALTER TABLE detalle_venta ALTER COLUMN cantidad_solicitada SET NOT NULL;
+ALTER TABLE detalle_venta DROP CONSTRAINT IF EXISTS detalle_venta_cantidad_check;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='detalle_venta'::regclass AND conname='ck_detalle_entrega') THEN
+        ALTER TABLE detalle_venta ADD CONSTRAINT ck_detalle_entrega CHECK (
+            cantidad_solicitada > 0 AND cantidad >= 0 AND cantidad <= cantidad_solicitada
+        );
+    END IF;
+END $$;
+
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS numero_orden VARCHAR(40);
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS forma_pago VARCHAR(20) DEFAULT 'EFECTIVO';
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS descuento_pct NUMERIC DEFAULT 0;
@@ -16,6 +29,9 @@ ALTER TABLE ventas ADD COLUMN IF NOT EXISTS numero_factura VARCHAR(40);
 UPDATE ventas SET estado = CASE WHEN anulada THEN 'CANCELADO' ELSE 'ENTREGADO' END
 WHERE estado IS NULL;
 UPDATE ventas SET subtotal = total WHERE subtotal IS NULL;
+-- Actualiza también pedidos creados con la versión previa de08: aún no entregaron mercadería.
+UPDATE detalle_venta d SET cantidad=0 FROM ventas v WHERE d.venta_id=v.id AND v.estado='PENDIENTE';
+UPDATE ventas SET subtotal=0,total=0 WHERE estado='PENDIENTE';
 
 DO $$
 DECLARE

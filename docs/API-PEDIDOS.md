@@ -71,7 +71,7 @@ Recurso ausente: 404; entradas o transiciones inválidas: 400.
 Envelope `{contenido:[pedido],pagina,tamanio,totalElementos,totalPaginas}` con las
 mismas cabeceras y detalle. Página desde 0, tamaño 1..100 (50 por defecto), orden
 fecha DESC, id DESC. Filtros opcionales combinados: estado exacto, clienteId
-exacto, desde/hasta ISO inclusive por día, numeroOrden exacto (sin substring).
+exacto, desde/hasta ISO inclusive por día, numeroOrden exacto (sin substring), recortado; vacío o solo espacios no filtra.
 Rango de fechas invertido, estado desconocido o paginado inválido: 400. Página
 fuera del total: contenido vacío conservando totales. Consulta paginada en DB,
 sin paginar una colección en memoria.
