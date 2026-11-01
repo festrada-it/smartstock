@@ -7,6 +7,7 @@ let modalCliente;
 let modalDetalle;
 // Paginación del historial del cliente abierto en el detalle.
 let detalle = { clienteId: null, pagina: 0, totalPaginas: 0 };
+const cargasPedidos = crearCargaUnica();
 
 async function iniciar() {
     renderLayout(sesion);
@@ -111,8 +112,15 @@ async function cargarProductosCliente(clienteId) {
 }
 
 async function cargarPedidos(pagina) {
-    const cuerpo = document.getElementById('detalle-pedidos');
     const botonMas = document.getElementById('btn-mas-pedidos');
+    botonMas.disabled = true;
+    // Un doble clic en "Ver más" no vuelve a pedir (ni a insertar) la misma página.
+    await cargasPedidos.ejecutar(`${detalle.clienteId}-${pagina}`, () => mostrarPaginaPedidos(pagina, botonMas));
+    botonMas.disabled = false;
+}
+
+async function mostrarPaginaPedidos(pagina, botonMas) {
+    const cuerpo = document.getElementById('detalle-pedidos');
     try {
         const respuesta = await fuenteClientes.pedidos(detalle.clienteId, pagina, TAMANIO_PAGINA);
         detalle.pagina = respuesta.pagina;
