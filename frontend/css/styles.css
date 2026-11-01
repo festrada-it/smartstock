@@ -23,3 +23,14 @@
     border-radius: 0.75rem;
     padding: 1.25rem;
 }
+
+/* Comprobante y factura de pedidos: al imprimir (o "Guardar como PDF") solo sale #area-impresion, en A4. */
+@media print {
+    @page { size: A4; margin: 15mm; }
+    body * { visibility: hidden; }
+    #area-impresion, #area-impresion * { visibility: visible; }
+    #area-impresion { position: absolute; inset: 0 auto auto 0; width: 100%; }
+    .modal-dialog { max-width: 100%; margin: 0; }
+    .no-imprimir { display: none !important; }
+    .badge { border: 1px solid #000; color: #000 !important; background: transparent !important; }
+}

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartStock - Pedidos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/tailwind-config.js"></script>
+    <link href="css/styles.css" rel="stylesheet">
+</head>
+<body class="tw-bg-slate-50">
+<div class="tw-flex">
+    <aside id="sidebar" class="tw-w-64 tw-shrink-0 tw-border-r tw-bg-white"></aside>
+
+    <main class="tw-flex-1 tw-p-8">
+        <h1 class="tw-mb-6 tw-text-2xl tw-font-bold tw-text-slate-800">Pedidos de clientes</h1>
+        <div id="aviso-ejemplo" class="alert alert-warning d-none">
+            <strong>Datos de ejemplo.</strong> Los pedidos todavía no están disponibles en core (#24, #25):
+            se guardan solo en esta pestaña y se pierden al recargar.
+        </div>
+        <div id="mensajes"></div>
+
+        <!-- Armado del pedido -->
+        <div class="tw-grid tw-grid-cols-1 tw-gap-4 lg:tw-grid-cols-5">
+            <section class="tarjeta lg:tw-col-span-2">
+                <h2 class="tw-mb-3 tw-text-base tw-font-semibold">Buscar productos</h2>
+                <input id="buscador" type="search" class="form-control mb-3" placeholder="Nombre, SKU o marca (Enter agrega el primero)">
+                <div id="resultados" class="list-group tw-max-h-[28rem] tw-overflow-y-auto"></div>
+            </section>
+
+            <section class="tarjeta lg:tw-col-span-3">
+                <h2 class="tw-mb-3 tw-text-base tw-font-semibold">Nuevo pedido</h2>
+                <div class="tw-mb-4 tw-rounded-lg tw-border tw-bg-slate-50 tw-p-3">
+                    <label class="form-label tw-font-semibold" for="cliente">Cliente</label>
+                    <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-3">
+                        <select id="cliente" class="form-select tw-max-w-xs"><option value="">Cargando clientes...</option></select>
+                        <div id="cliente-calificacion" class="tw-flex tw-items-center tw-gap-2" aria-live="polite"></div>
+                    </div>
+                    <div id="cliente-aviso" class="tw-mt-2 tw-text-sm"></div>
+                </div>
+
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th class="tw-w-28">Cantidad</th>
+                            <th class="text-end">Precio unit.</th>
+                            <th class="text-end">Subtotal</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="lineas" class="tw-tabular-nums"></tbody>
+                </table>
+
+                <div class="row g-3 tw-mb-3">
+                    <div class="col-sm-6">
+                        <label class="form-label" for="forma-pago">Forma de pago</label>
+                        <select id="forma-pago" class="form-select"></select>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="fecha-envio">Fecha de envío (opcional)</label>
+                        <input id="fecha-envio" type="date" class="form-control">
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="form-check form-switch tw-mt-1">
+                            <input class="form-check-input" type="checkbox" role="switch" id="con-descuento">
+                            <label class="form-check-label" for="con-descuento">¿Aplica descuento?</label>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="input-group">
+                            <input id="descuento" type="number" class="form-control" min="1" max="20" step="1" value="5" disabled aria-label="Descuento en porcentaje">
+                            <span class="input-group-text">% (máx. 20)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <dl class="tw-mb-3 tw-grid tw-grid-cols-2 tw-gap-x-4 tw-tabular-nums">
+                    <dt class="tw-font-normal tw-text-slate-600">Subtotal</dt><dd class="text-end tw-mb-0" id="subtotal">$ 0,00</dd>
+                    <dt class="tw-font-normal tw-text-slate-600">Descuento</dt><dd class="text-end tw-mb-0" id="importe-descuento">$ 0,00</dd>
+                    <dt class="tw-text-lg">Total</dt><dd class="text-end tw-mb-0 tw-text-lg tw-font-bold" id="total">$ 0,00</dd>
+                </dl>
+                <div class="tw-flex tw-gap-2">
+                    <button id="btn-vaciar" class="btn btn-outline-secondary">Vaciar</button>
+                    <button id="btn-crear" class="btn btn-marca btn-lg tw-flex-1" disabled>Crear pedido</button>
+                </div>
+            </section>
+        </div>
+
+        <!-- Lista de pedidos -->
+        <section class="tarjeta tw-mt-6">
+            <h2 class="tw-mb-3 tw-text-base tw-font-semibold">Pedidos</h2>
+            <form id="filtros" class="tw-mb-3 tw-flex tw-flex-wrap tw-gap-2">
+                <select id="filtro-estado" class="form-select form-select-sm tw-w-auto" aria-label="Estado"><option value="">Todos los estados</option></select>
+                <select id="filtro-cliente" class="form-select form-select-sm tw-w-auto" aria-label="Cliente"><option value="">Todos los clientes</option></select>
+                <input id="filtro-desde" type="date" class="form-control form-control-sm tw-w-auto" aria-label="Desde">
+                <input id="filtro-hasta" type="date" class="form-control form-control-sm tw-w-auto" aria-label="Hasta">
+                <input id="filtro-orden" type="search" class="form-control form-control-sm tw-w-48" placeholder="N.º de orden (OC-…)" aria-label="Número de orden">
+                <button class="btn btn-sm btn-outline-secondary" type="submit">Filtrar</button>
+            </form>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr><th>N.º de orden</th><th>Fecha</th><th>Cliente</th><th>Estado</th><th>Entrega</th><th class="text-end">Total</th><th class="text-end">Acciones</th></tr>
+                    </thead>
+                    <tbody id="tabla-pedidos" class="tw-tabular-nums"></tbody>
+                </table>
+            </div>
+            <button id="btn-mas" class="btn btn-sm btn-outline-secondary tw-mt-2 d-none">Ver más</button>
+        </section>
+    </main>
+</div>
+
+<!-- Detalle / comprobante / factura (imprimible) -->
+<div class="modal fade" id="modal-detalle" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header no-imprimir">
+                <h5 class="modal-title">Pedido</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="area-impresion"></div>
+            <div class="modal-footer no-imprimir">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" id="btn-imprimir" class="btn btn-marca d-none">Imprimir / descargar PDF</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pactar fecha de envío -->
+<div class="modal fade" id="modal-fecha" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <form id="form-fecha" class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Pactar fecha de envío</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="fecha-pedido-id">
+                <label class="form-label" for="fecha-nueva">Fecha de envío</label>
+                <input id="fecha-nueva" type="date" class="form-control" required>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-marca">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/calificacion.js"></script>
+<script src="js/datos-ejemplo-clientes.js"></script>
+<script src="js/clientes-fuente.js"></script>
+<script src="js/datos-ejemplo-pedidos.js"></script>
+<script src="js/pedidos-fuente.js"></script>
+<script src="js/pedidos.js"></script>
+</body>
+</html>
