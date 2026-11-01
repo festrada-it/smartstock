@@ -109,7 +109,7 @@ function renderResultados() {
     contenedor.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => agregar(Number(b.dataset.id))));
 }
 
-// Al crear no se descuenta stock (queda PENDIENTE): no se limita por el stock actual; core lo valida al confirmar.
+// La cantidad no se limita al stock: si lo supera, la línea lo avisa y no se puede crear el pedido (#72).
 function agregar(productoId) {
     const producto = productos.find(p => p.id === productoId);
     const linea = lineas.get(productoId) ?? { producto, cantidad: 0 };
@@ -127,14 +127,18 @@ function descuentoActual() {
 function renderLineas() {
     const cuerpo = document.getElementById('lineas');
     const items = [...lineas.values()];
-    cuerpo.innerHTML = items.map(({ producto, cantidad }) => `
+    cuerpo.innerHTML = items.map(({ producto, cantidad }) => {
+        const aviso = avisoStockInsuficiente(cantidad, producto.stockActual);
+        return `
         <tr>
             <td>${escaparHtml(producto.nombre)}<span class="tw-block tw-text-xs tw-text-slate-500">${escaparHtml(producto.marca || '')}</span></td>
-            <td><input type="number" class="form-control form-control-sm" min="1" step="1" value="${cantidad}" data-cantidad="${producto.id}" aria-label="Cantidad de ${escaparHtml(producto.nombre)}"></td>
+            <td><input type="number" class="form-control form-control-sm${aviso ? ' is-invalid' : ''}" min="1" step="1" value="${cantidad}" data-cantidad="${producto.id}" aria-label="Cantidad de ${escaparHtml(producto.nombre)}">
+                ${aviso ? `<div class="tw-mt-1 tw-text-xs tw-font-semibold text-danger" role="alert">⛔ ${aviso}</div>` : ''}</td>
             <td class="text-end">${formatoMoneda(producto.precio)}</td>
             <td class="text-end">${formatoMoneda(producto.precio * cantidad)}</td>
             <td class="text-end"><button class="btn btn-sm btn-link text-danger" data-quitar="${producto.id}" title="Quitar">✕</button></td>
-        </tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted">Buscá un producto y hacé click para agregarlo</td></tr>';
+        </tr>`;
+    }).join('') || '<tr><td colspan="5" class="text-center text-muted">Buscá un producto y hacé click para agregarlo</td></tr>';
 
     const descuento = descuentoActual();
     const descuentoValido = descuento === 0 || (descuento >= 1 && descuento <= DESCUENTO_MAXIMO);
@@ -143,11 +147,11 @@ function renderLineas() {
     document.getElementById('subtotal').textContent = formatoMoneda(totales.subtotal);
     document.getElementById('importe-descuento').textContent = `− ${formatoMoneda(totales.importeDescuento)}${descuento ? ` (${descuento}%)` : ''}`;
     document.getElementById('total').textContent = formatoMoneda(totales.total);
-    document.getElementById('btn-crear').disabled = !items.length || !clienteSeleccionado() || !descuentoValido;
+    document.getElementById('btn-crear').disabled = !items.length || !clienteSeleccionado() || !descuentoValido
+        || lineasSinStock(items).length > 0;
 
     cuerpo.querySelectorAll('[data-cantidad]').forEach(input => input.addEventListener('change', () => {
-        // Solo enteros: core rechaza cantidades con decimales.
-        lineas.get(Number(input.dataset.cantidad)).cantidad = Math.max(1, Math.trunc(Number(input.value)) || 1);
+        lineas.get(Number(input.dataset.cantidad)).cantidad = cantidadIngresada(input.value);
         renderLineas();
     }));
     cuerpo.querySelectorAll('[data-quitar]').forEach(b => b.addEventListener('click', () => { lineas.delete(Number(b.dataset.quitar)); renderLineas(); }));
@@ -163,6 +167,7 @@ function vaciar() {
 
 async function crearPedido() {
     const boton = document.getElementById('btn-crear');
+    if (lineasSinStock([...lineas.values()]).length) return;
     boton.disabled = true;
     try {
         const pedido = await fuentePedidos.crear({
