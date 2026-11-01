@@ -40,12 +40,12 @@ Un producto existente sin movimientos devuelve `contenido: []`, `totalElementos:
 y `totalPaginas: 0`. Una página posterior a la última devuelve `contenido: []`
 y conserva los totales. La baja lógica del producto no oculta su historial.
 
-Errores con cuerpo JSON `{"error": "mensaje en español"}`:
+Respuestas de error (400, 403 y 404 incluyen JSON `{"error": "mensaje en español"}`):
 
 - **400:** `page` negativo, `size` fuera de 1..100, valores no enteros o fuera del
   rango entero, o un desplazamiento `page * size` mayor que 2147483647.
 - **404:** el producto no existe.
-- **401:** falta un JWT válido o está vencido.
+- **401:** falta un JWT válido o está vencido; no se garantiza un cuerpo JSON.
 - **403:** el JWT no tiene uno de los roles admitidos. ADMIN y VENDEDOR tienen
   acceso; el endpoint no necesita permisos de escritura.
 
