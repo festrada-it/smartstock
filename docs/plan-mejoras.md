@@ -299,3 +299,183 @@ Por eso el contrato va en el primer commit de cada PR.
 | **Florencia** | Catálogo y Grupos (#17, contrato de #36). Clientes (#19, contrato de #37) | Pedidos (#27) con los campos de #24. Panel de alertas (#33, contrato de #44). Reposición (#31, contrato de #42). Rotación (#29). Lotes (#23) | Conectar #39 al mergear #35; después #17, #19, etc. a medida que entran |
 
 **Revisiones:** cada PR necesita 1 aprobación de otra persona. Para no trabar el camino crítico, las PRs de core se revisan en el día.
+
+## 10. Dashboards de dirección
+
+> Estado: **aprobado** (31-10-2026). P1 a P11 con la propuesta; P12 con la decisión de §10.8. Alcance: solo lo pedido para los 3 dashboards.
+
+**Reglas:**
+- Los cálculos van en **analytics**, que solo lee la base.
+- **core** solo guarda los datos.
+- El **front** solo muestra.
+
+Se reutiliza lo que ya existe:
+- `ventas_diarias` y `stock_historico` de `analytics-service/app/db.py`;
+- `productos.costo`;
+- `categorias.umbral_rotacion` (#36);
+- las reglas de #28 (rotación) y #22 (vencimientos);
+- la tabla `parametros`, que ya se edita en la pantalla "Usuarios y parámetros" porque esa pantalla lista todos los parámetros.
+
+**Filtros:** los tres dashboards se filtran por **período** (últimos 30 o 90 días) y **grupo de producto**. El 3 se filtra también por **cliente**.
+
+### 10.1 Datos nuevos
+
+| Script | Qué agrega | Responsable |
+|--------|-----------|-------------|
+| `10_parametros_y_datos_inventario.sql` | Parámetros `dsi_rojo_bajo` (7), `dsi_amarillo_alto` (45), `dsi_rojo_alto` (90), `dias_sin_ventas` (90), `fill_rate_objetivo` (95), `riesgo_amarillo_pct` (5) y `riesgo_rojo_pct` (10). Datos de prueba: productos de rotación rápida y lenta, y 2 o 3 productos con stock y **sin ventas en 90 días**. | core (Nicolas) |
+| `08_pedidos.sql` (#24, todavía sin mergear) | `detalle_venta.cantidad_solicitada`. `detalle_venta.cantidad` pasa a ser la **cantidad entregada** (ver P8). Historial existente: `cantidad_solicitada = cantidad`. | core (Nicolas) |
+| `11_datos_fill_rate.sql` (después de `08`) | Datos de prueba de entregas parciales **distintas por cliente**, para que el Fill Rate no dé 100% en todo. | core (Nicolas) |
+
+Analytics toma valores por defecto si un parámetro no está en la base (`obtener_parametros`), así que el dashboard 1 no tiene que esperar al script `10`.
+
+### 10.2 Fórmulas
+
+Se calculan para el período P de 30 o 90 días y el grupo elegido.
+
+**Dashboard 1: salud del inventario** (con datos que ya existen)
+- Costo de ventas del período = Σ unidades vendidas × `productos.costo`. Excluye las ventas anuladas, igual que hoy. Ver P2.
+- Valor del stock a costo = Σ `stock_actual` × `costo`.
+- Stock promedio a costo = promedio diario de `stock_historico` × `costo`, en los días de P.
+- **DSI** = valor del stock a costo / (costo de ventas del período / días de P).
+- **Rotación** del período = costo de ventas del período / stock promedio a costo.
+  - Mensual = rotación × 30 / días de P.
+  - Anualizada = rotación × 365 / días de P.
+- Se calcula total, por grupo y por producto. Sin ventas en P, el DSI no se puede calcular: se muestra "sin ventas" con semáforo rojo (dinero atrapado).
+- **Semáforo de DSI** (umbrales configurables por ADMIN; por defecto 7, 45 y 90 días):
+
+  | DSI | Color | Significado |
+  |-----|-------|-------------|
+  | < `dsi_rojo_bajo` | rojo | riesgo de quiebre |
+  | ≥ `dsi_amarillo_alto` | amarillo | dinero atrapado |
+  | ≥ `dsi_rojo_alto` | rojo | dinero atrapado |
+  | en el medio | verde | — |
+
+**Dashboard 2: lento movimiento y obsolescencia**
+- **Sin ventas:** stock > 0 y ninguna venta en los últimos `dias_sin_ventas` días (90 por defecto).
+- **Baja rotación:** la regla de #28, tal cual (umbral del grupo, ventana de 30 días). Ver P3.
+- **Próximo a vencer** y **vencido:** las reglas de #22, por lote. Hasta que exista #20, la sección se muestra como "Disponible cuando se carguen lotes".
+- En cada caso, cantidad (el stock del producto, o el disponible del lote) y **valor a costo** = cantidad × costo, más el % sobre el valor total del stock.
+- **$ en riesgo** = suma de los valores, contando cada producto una sola vez con su motivo principal, con prioridad vencido > próximo a vencer > sin ventas > baja rotación (P4).
+- **Semáforo del $ en riesgo**, según su % sobre el valor total del stock (umbrales configurables por ADMIN):
+
+  | % del stock | Color |
+  |-------------|-------|
+  | < `riesgo_amarillo_pct` (5%) | verde |
+  | de 5% a `riesgo_rojo_pct` (10%) | amarillo |
+  | > 10% | rojo |
+- Acción sugerida:
+
+  | Motivo | Acción |
+  |--------|--------|
+  | Baja rotación | la de #28 ("Comprar menos" / "No recomprar / promocionar") |
+  | Próximo a vencer | "Vender primero" |
+  | Vencido | "Retirar de la venta" |
+  | Sin ventas | "No recomprar / promocionar" |
+
+**Dashboard 3: Fill Rate por cadena**
+- **Fill Rate** = Σ unidades entregadas / Σ unidades solicitadas × 100.
+- Cuentan las líneas de los pedidos CONFIRMADO, ENVIADO y ENTREGADO, por fecha del pedido (ver P6).
+- Se calcula total y por cliente: Día Express, Carrefour Express, Jumbo Express y Chino Almagro.
+- Semáforo: verde ≥ 98%, amarillo de 95% a 98%, rojo < 95%. La línea objetivo sale de `fill_rate_objetivo` (95). Ver P11.
+
+**Tarjetas de arriba:**
+- DSI, Rotación, $ en riesgo y Fill Rate.
+- DSI, $ en riesgo y Fill Rate llevan semáforo. **Rotación va sin semáforo**: solo el valor y la variación (P12).
+- Cada una con la variación contra el período anterior de igual largo, calculada con la misma fórmula sobre los días P anteriores. En el $ en riesgo, la variación cubre sin ventas y baja rotación, porque no hay historia de lotes; se aclara en el tooltip (P9).
+
+### 10.3 Cambio de regla: confirmación parcial (#24, #25 y anulación)
+
+Hoy, si falta stock, el pedido no se confirma, y así el Fill Rate daría siempre 100%. Con el cambio:
+
+- **#24, `POST /api/pedidos/{id}/confirmar`:**
+  - Cada línea entrega `min(solicitada, disponible)`, con el bloqueo actual (`bloquearProductos`), y FEFO cuando llegue #21.
+  - Se guarda `cantidad_solicitada`. `cantidad` queda como entregada, y el faltante es la diferencia.
+  - La respuesta informa el faltante por línea en `advertencias`.
+  - Subtotal y total se recalculan sobre lo entregado (P7).
+  - Si no hay nada disponible de ninguna línea, no se confirma (400) (P7).
+- **#25:** cancelar devuelve lo entregado (`cantidad`) y la factura usa lo entregado. Con P8 no cambia la lógica, porque ya trabaja con `cantidad`.
+- **Anulación de Nico (#7):** devuelve `detalle_venta.cantidad`. Con P8 sigue siendo correcta sin cambios.
+- **#27 (front):** al confirmar, muestra el faltante por línea.
+
+### 10.4 Endpoints de analytics
+
+Todos con el JWT de siempre, en snake_case como el resto de analytics, con su contrato en `docs/` en el primer commit.
+
+| Ruta | Devuelve |
+|------|----------|
+| `GET /api/dashboard/inventario?periodo=30\|90&grupo_id=` | `total` (valor del stock, costo de ventas, DSI, rotación mensual y anual, semáforo), `anterior` (DSI y rotación), `por_grupo` y `por_producto`, ordenados de peor a mejor (semáforo rojo → amarillo → verde) |
+| `GET /api/dashboard/obsolescencia?periodo=30\|90&grupo_id=` | `en_riesgo` (valor, %, valor anterior), `por_tipo` (SIN_VENTAS, BAJA_ROTACION, PROXIMO_A_VENCER y VENCIDO, cada uno con cantidad, valor, % y `disponible`) e `items` (producto, grupo, motivo, cantidad, valor y acción sugerida) |
+| `GET /api/dashboard/fill-rate?periodo=30\|90&grupo_id=&cliente_id=` | `objetivo`, `total` (solicitadas, entregadas, fill rate y semáforo), `anterior` y `por_cliente` |
+
+No hay un endpoint aparte para las tarjetas: cada una se arma con el `total` y el `anterior` de su dashboard.
+
+### 10.5 Diseño en el Monitor predictivo (front)
+
+1. **Barra de filtros** arriba: período (30 o 90 días) y grupo.
+2. **Fila de 4 tarjetas:** DSI, Rotación (mensual, con la anualizada abajo), $ en riesgo y Fill Rate. Cada una muestra:
+   - el semáforo con ícono y texto, no solo color (Rotación no lleva semáforo);
+   - la variación ▲/▼ contra el período anterior;
+   - la **fórmula en un tooltip** (ⓘ), para la defensa oral.
+3. **Tres pestañas:**
+   - **Salud del inventario:** tarjetas con DSI y Rotación totales, más barras o tabla por grupo, de peor a mejor.
+   - **Lento movimiento:**
+     - tarjeta con el "$ en riesgo";
+     - barras por motivo, con vencimientos como "Disponible cuando se carguen lotes" hasta #20;
+     - tabla con producto, motivo, cantidad, valor y acción sugerida.
+   - **Fill Rate:**
+     - filtro por cliente;
+     - tarjeta con el total;
+     - barras por cadena con la línea objetivo y el semáforo.
+4. **Lo que ya existe sigue igual, debajo:** el panel de alertas (#33), la proyección de stock, la tendencia y la tabla de predicciones.
+
+### 10.6 Tareas propuestas
+
+| Tarea | Comp. | Responsable | Issue | Depende de | Prioridad 4-11 |
+|-------|-------|-------------|-------|-----------|----------------|
+| D.1 Script `10`: parámetros y datos de inventario variados | core + db | Nicolas | nuevo | #36 (grupos) | 1 |
+| D.2 Endpoint `/api/dashboard/inventario` | analytics | Marcelo | nuevo | — (defaults si falta `10`) | 1 |
+| D.3 Tarjetas y pestaña "Salud del inventario" | front | Florencia | nuevo | contrato de D.2 | 1 |
+| D.4 Endpoint `/api/dashboard/obsolescencia`: sin ventas y baja rotación ahora, vencimientos cuando estén los lotes | analytics | Marcelo | nuevo, reutiliza #28 y #22 | #28; #22 y #20 para vencimientos | 2 |
+| D.5 Pestaña "Lento movimiento" y tarjeta "$ en riesgo" | front | Florencia | nuevo | contrato de D.4 | 2 |
+| D.6 Cantidad solicitada y confirmación parcial | core + db | Nicolas | **amplía #24 y #25** | — | 3 |
+| D.7 Script `11`: entregas parciales por cliente | core + db | Nicolas | **amplía #24** | `08` | 3 |
+| D.8 Endpoint `/api/dashboard/fill-rate` | analytics | Marcelo | nuevo | contrato de #24 | 3 |
+| D.9 Pestaña "Fill Rate" y tarjeta | front | Florencia | nuevo; el faltante al confirmar **amplía #27** | contrato de D.8 | 3 |
+
+**#32 y #33 (panel de alertas) no se tocan.** Los dashboards son pestañas aparte y el panel sigue debajo.
+
+### 10.7 Riesgos
+
+- **Costo histórico:** no existe. El costo de ventas usa el costo actual del producto hasta que existan los lotes con su costo (#20) (P2).
+- **La rotación tiene dos medidas:**
+  - la del dashboard 1, en **pesos a costo**, es un indicador financiero;
+  - la de #28, en **unidades**, es la regla de negocio del grupo para "baja rotación".
+
+  Las tarjetas y los tooltips las nombran distinto para que no se confundan en la defensa.
+
+### 10.8 Decisiones tomadas (31-10-2026)
+
+| # | Tema | Decisión |
+|---|------|----------|
+| P1 | Umbrales del DSI | `dsi_rojo_bajo` 7, `dsi_amarillo_alto` 45 y `dsi_rojo_alto` 90 días (configurables) |
+| P2 | Costo de ventas | Con el costo **actual** del producto mientras no haya lotes; se aclara en el tooltip |
+| P3 | Período en baja rotación | Ventana fija de 30 días de #28; el filtro de período solo define la comparación con el período anterior |
+| P4 | Doble conteo | Cada producto cuenta una sola vez en el $ en riesgo, con prioridad vencido > próximo a vencer > sin ventas > baja rotación; la tabla muestra el motivo principal |
+| P5 | Acción de "sin ventas" | "No recomprar / promocionar" |
+| P6 | Qué entra en el Fill Rate | Pedidos CONFIRMADO, ENVIADO y ENTREGADO (sin PENDIENTE ni CANCELADO). Entregada = cantidad confirmada |
+| P7 | Confirmación parcial | Total y factura sobre lo entregado, sin backorder (el faltante solo se registra). Si no hay nada disponible, no se confirma (400) |
+| P8 | Columnas | Se reutiliza `detalle_venta.cantidad` como entregada y se agrega solo `cantidad_solicitada` |
+| P9 | Variación del $ en riesgo | Solo sin ventas y baja rotación; vencimientos no tiene historia; se aclara en el tooltip |
+| P10 | Demanda con faltantes | Queda anotado: #26 sigue con lo entregado. Usar `cantidad_solicitada` en el predictor se decide después de la demo |
+| P11 | Semáforo del Fill Rate | Fijo: verde ≥ 98%, amarillo 95–98% y rojo < 95%. `fill_rate_objetivo` solo mueve la línea del gráfico |
+| P12 | Semáforos de las tarjetas | **Rotación sin semáforo**: solo el valor y la variación. **$ en riesgo**: verde < 5% del valor del stock, amarillo de 5% a 10%, rojo > 10%, con los parámetros `riesgo_amarillo_pct` y `riesgo_rojo_pct` |
+
+## 11. Próximos pasos (fuera de alcance)
+
+Solo documentación, sin issues.
+
+| Indicador | Qué es | Datos que necesitaría | Por qué aporta valor |
+|-----------|--------|-----------------------|----------------------|
+| **OTIF** (On Time In Full) | % de pedidos entregados **completos y en la fecha pactada**. El Fill Rate mide solo "completo"; OTIF suma el "a tiempo". | La fecha pactada (`fecha_envio`, ya planificada en #24) y la **fecha real de entrega** (registrarla al pasar a ENTREGADO). Con el Fill Rate por línea se obtiene el "in full". | Es el indicador que miran las cadenas para calificar a sus proveedores: cumplirlo protege la relación con Día, Carrefour o Jumbo. |
+| **IRA** (Inventory Record Accuracy) | % de productos cuyo stock en el sistema coincide con el conteo físico, medido con **conteos cíclicos** (se cuenta una parte del depósito cada semana, priorizando lo de más valor o más movimiento). | Una tabla de conteos (producto, fecha, cantidad contada, cantidad del sistema, quién contó) y el ajuste resultante como movimiento AJUSTE, que ya existe. | Todas las predicciones y alertas parten del stock del sistema: si ese número está mal, el quiebre o el vencimiento se anticipan mal. |
+| **Calce financiero** (ciclo de caja) | **Ciclo de caja = DSI + días de cobro − días de pago**: cuántos días pasa la plata atrapada entre que se paga al proveedor y se cobra al cliente. | El DSI (dashboard 1). Para los días de cobro, la fecha de cobro de cada pedido o factura, sobre todo en cuenta corriente. Para los días de pago, la fecha de pago de cada compra o lote al proveedor. | Muestra cuánto capital de trabajo necesita el negocio y si conviene negociar plazos con proveedores o clientes. Es clave para una PyME con poco margen de caja. |
