@@ -150,6 +150,7 @@ public class VentaService {
             if (!Boolean.TRUE.equals(producto.getActivo())) {
                 throw new RecursoNoEncontradoException("Producto " + producto.getId() + " no encontrado");
             }
+            if (detalle.getCantidad() == 0) continue;
             if (producto.getStockActual() < detalle.getCantidad()) {
                 throw new NegocioException("Stock insuficiente para " + producto.getNombre()
                         + " (disponible: " + producto.getStockActual() + ", pedido: " + detalle.getCantidad() + ")");

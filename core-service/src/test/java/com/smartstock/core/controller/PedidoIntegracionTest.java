@@ -18,6 +18,7 @@ import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.persistence.EntityManagerFactory;
 import com.smartstock.core.model.*;
 import com.smartstock.core.security.JwtService;
 
@@ -27,6 +28,7 @@ class PedidoIntegracionTest {
     @Autowired TestRestTemplate http;
     @Autowired JwtService jwt;
     @Autowired JdbcTemplate db;
+    @Autowired EntityManagerFactory entityManagerFactory;
     @LocalServerPort int puerto;
     Long cliente;
     Long producto;
@@ -57,10 +59,13 @@ class PedidoIntegracionTest {
         assertTrue(pedido.get("numeroOrden").asText().matches("OC-\\d{4}-\\d{6,}"));
         assertTrue(pedido.get("numeroFactura").isNull());
         assertEquals(1, pedido.get("items").size());
-        assertEquals(7, pedido.get("items").get(0).get("cantidad").asInt());
-        assertEquals(70.07, pedido.get("subtotal").asDouble());
-        assertEquals(61.31, pedido.get("total").asDouble());
-        assertEquals(8.76, pedido.get("importeDescuento").asDouble());
+        assertEquals(0, pedido.get("items").get(0).get("cantidad").asInt());
+        assertEquals(7, pedido.get("items").get(0).get("cantidadSolicitada").asInt());
+        assertEquals(0, pedido.get("items").get(0).get("cantidadEntregada").asInt());
+        assertEquals(7, pedido.get("items").get(0).get("faltante").asInt());
+        assertEquals(0, pedido.get("subtotal").asDouble());
+        assertEquals(0, pedido.get("total").asDouble());
+        assertEquals(0, pedido.get("importeDescuento").asDouble());
         assertTrue(pedido.get("conDescuento").asBoolean());
         assertEquals(10, stock(producto));
         assertEquals(0, movimientos());
@@ -69,7 +74,11 @@ class PedidoIntegracionTest {
         var confirmada = post("/api/pedidos/" + id + "/confirmar", null, Rol.VENDEDOR);
         assertEquals(200, confirmada.getStatusCode().value(), confirmada.toString());
         assertEquals(10.01, confirmada.getBody().get("items").get(0).get("precioUnitario").asDouble());
+        assertEquals(70.07, confirmada.getBody().get("subtotal").asDouble());
         assertEquals(61.31, confirmada.getBody().get("total").asDouble());
+        assertEquals(8.76, confirmada.getBody().get("importeDescuento").asDouble());
+        assertEquals(7, confirmada.getBody().get("items").get(0).get("cantidadEntregada").asInt());
+        assertEquals(0, confirmada.getBody().get("items").get(0).get("faltante").asInt());
         assertEquals(1, confirmada.getBody().get("advertencias").size());
         assertEquals(3, stock(producto));
         assertEquals(1, movimientos());
@@ -94,7 +103,9 @@ class PedidoIntegracionTest {
         datos.put("fechaEnvio", hoy().toString());
         var creada = post("/api/pedidos", datos, Rol.ADMIN);
         assertEquals(201, creada.getStatusCode().value());
-        var guardada = get("/api/pedidos/" + creada.getBody().get("id").asLong()).getBody();
+        long id = creada.getBody().get("id").asLong();
+        assertEquals(200, post("/api/pedidos/" + id + "/confirmar", null, Rol.VENDEDOR).getStatusCode().value());
+        var guardada = get("/api/pedidos/" + id).getBody();
         assertEquals(8.01, guardada.get("total").asDouble());
         assertEquals(2.00, guardada.get("importeDescuento").asDouble());
         assertEquals(10.01, guardada.get("subtotal").asDouble());
@@ -110,17 +121,89 @@ class PedidoIntegracionTest {
         assertEquals(0, movimientos());
     }
 
-    @Test void faltaStockRevierteTodosLosProductosYEstado() {
+    @Test void confirmaParcialYCalculaImportesSobreLoEntregadoSinBackorder() {
+        var datos = datos(List.of(item(producto, 2), item(otro, 2)));
+        datos.put("descuentoPct", 10);
+        var creada = post("/api/pedidos", datos, Rol.VENDEDOR);
+        assertEquals(201, creada.getStatusCode().value());
+        long id = creada.getBody().get("id").asLong();
+        var respuesta = post("/api/pedidos/" + id + "/confirmar", null, Rol.VENDEDOR);
+        assertEquals(200, respuesta.getStatusCode().value(), respuesta.toString());
+        var pedido = respuesta.getBody();
+        assertEquals("CONFIRMADO", pedido.get("estado").asText());
+        assertEquals(30.03, pedido.get("subtotal").asDouble());
+        assertEquals(27.03, pedido.get("total").asDouble());
+        assertEquals(3.00, pedido.get("importeDescuento").asDouble());
+        var segunda = pedido.get("items").get(1);
+        assertEquals(2, segunda.get("cantidadSolicitada").asInt());
+        assertEquals(1, segunda.get("cantidadEntregada").asInt());
+        assertEquals(1, segunda.get("cantidad").asInt());
+        assertEquals(1, segunda.get("faltante").asInt());
+        assertTrue(pedido.get("advertencias").toString().contains("faltan 1"));
+        assertEquals(8, stock(producto));
+        assertEquals(0, stock(otro));
+        assertEquals(2, movimientos());
+        assertEquals(400, post("/api/pedidos/" + id + "/confirmar", null, Rol.VENDEDOR).getStatusCode().value());
+    }
+
+    @Test void lineaSinDisponibilidadQuedaEnCeroSinMovimiento() {
+        db.update("UPDATE productos SET stock_actual=0 WHERE id=?", otro);
+        long id = crear(List.of(item(producto, 2), item(otro, 3))).get("id").asLong();
+        var respuesta = post("/api/pedidos/" + id + "/confirmar", null, Rol.ADMIN);
+        assertEquals(200, respuesta.getStatusCode().value());
+        var segunda = respuesta.getBody().get("items").get(1);
+        assertEquals(3, segunda.get("cantidadSolicitada").asInt());
+        assertEquals(0, segunda.get("cantidadEntregada").asInt());
+        assertEquals(3, segunda.get("faltante").asInt());
+        assertEquals(20.02, respuesta.getBody().get("total").asDouble());
+        assertEquals(1, movimientos());
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM movimientos_stock WHERE producto_id=?", Integer.class, otro));
+    }
+
+    @Test void ningunStockDisponibleConservaPendienteSinCambios() {
+        db.update("UPDATE productos SET stock_actual=0 WHERE id IN (?,?)", producto, otro);
         var pedido = crear(List.of(item(producto, 2), item(otro, 2)));
         long id = pedido.get("id").asLong();
+        var antes = get("/api/pedidos/" + id).getBody();
+        assertEquals(0, antes.get("total").asDouble());
         assertEquals(400, post("/api/pedidos/" + id + "/confirmar", null, Rol.ADMIN).getStatusCode().value());
+        var guardado = get("/api/pedidos/" + id).getBody();
+        assertEquals(antes, guardado);
+        assertEquals("PENDIENTE", guardado.get("estado").asText());
+        assertEquals(0, movimientos());
+        assertEquals(0, stock(producto));
+        assertEquals(0, stock(otro));
+    }
+
+    @Test void errorEnSegundaLineaRevierteEntregaStockEImportes() {
+        long id = crear(List.of(item(producto, 2), item(otro, 2))).get("id").asLong();
+        db.update("UPDATE productos SET activo=false WHERE id=?", otro);
+        assertEquals(404, post("/api/pedidos/" + id + "/confirmar", null, Rol.ADMIN).getStatusCode().value());
+        var guardado = get("/api/pedidos/" + id).getBody();
+        assertEquals("PENDIENTE", guardado.get("estado").asText());
+        assertEquals(0, guardado.get("total").asDouble());
+        assertEquals(0, guardado.get("items").get(0).get("cantidadEntregada").asInt());
         assertEquals(10, stock(producto));
         assertEquals(1, stock(otro));
         assertEquals(0, movimientos());
-        assertEquals("PENDIENTE", get("/api/pedidos/" + id).getBody().get("estado").asText());
-        assertEquals(200, post("/api/ventas/" + id + "/anular", null, Rol.ADMIN).getStatusCode().value());
-        assertEquals("CANCELADO", get("/api/pedidos/" + id).getBody().get("estado").asText());
-        assertEquals(10, stock(producto));
+    }
+
+    @Test void listadoCargaRelacionesPorPaginaSinNMasUno() {
+        for (int i = 0; i < 3; i++) crear(List.of(item(producto, 1)));
+        var estadisticas = entityManagerFactory.unwrap(org.hibernate.SessionFactory.class).getStatistics();
+        boolean habilitadas = estadisticas.isStatisticsEnabled();
+        estadisticas.setStatisticsEnabled(true);
+        try {
+            estadisticas.clear();
+            var respuesta = get("/api/pedidos?clienteId=" + cliente + "&size=2");
+            assertEquals(200, respuesta.getStatusCode().value());
+            assertEquals(3, respuesta.getBody().get("totalElementos").asInt());
+            assertEquals(2, respuesta.getBody().get("contenido").size());
+            long consultas = estadisticas.getPrepareStatementCount();
+            assertTrue(consultas <= 3, "El listado ejecutó " + consultas + " consultas SQL");
+        } finally {
+            estadisticas.setStatisticsEnabled(habilitadas);
+        }
     }
 
     @Test void confirmarConcurrentementeDescuentaUnaSolaVez() throws Exception {
@@ -190,6 +273,7 @@ class PedidoIntegracionTest {
         var pagina = get(base + "&size=1").getBody();
         assertEquals(2, pagina.get("totalElementos").asInt());
         assertEquals(2, pagina.get("totalPaginas").asInt());
+        assertEquals(2, get(base + "&numeroOrden=").getBody().get("totalElementos").asInt());
         assertEquals(1, pagina.get("contenido").size());
         assertTrue(get(base + "&page=3").getBody().get("contenido").isEmpty());
         assertEquals(1, get(base + "&numeroOrden=" + primero.get("numeroOrden").asText()).getBody().get("contenido").size());
