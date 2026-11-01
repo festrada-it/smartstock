@@ -67,26 +67,30 @@ Requerimiento: documento *Fase 1 - Grupo 7* (Programación de Vanguardia - UCBA)
 
 ### Plan de mejoras: distribuidor mayorista
 
-Detalle, modelo de datos y decisiones en [plan-mejoras.md](plan-mejoras.md). Tablero: [SmartStock](https://github.com/users/festrada-it/projects/1). Se marca cada tarea al mergear su PR.
+Detalle, modelo de datos y decisiones en [plan-mejoras.md](plan-mejoras.md). Tablero: [SmartStock](https://github.com/users/festrada-it/projects/1). Milestone: [Entrega 4-11](https://github.com/festrada-it/smartstock/milestone/1). Se marca cada tarea al mergear su PR.
 
-**Para la entrega intermedia (4-11): pasos 0 a 3**
+> **Objetivo (cambio del 31-10):** **todos los pasos 1 a 8 tienen que estar para el miércoles 4-11.** La entrega final (12-11) queda para ajustes según la devolución del profe.
+>
+> **Ninguna tarea se frena por fechas:** si una tarea depende de otra, se arranca con el contrato publicado y datos de ejemplo, y se conecta cuando se mergea. Cada PR publica su contrato en `docs/` en el primer commit.
+>
+> **Corte del lunes 2-11 a la noche:** lo que no llegue cede lugar a la demo de punta a punta: login → producto → proveedor → cliente → pedido → alertas. Orden y camino crítico en [plan-mejoras.md §9](plan-mejoras.md#9-objetivo-4-11-y-camino-crítico).
 
-- [ ] **0. Preparación**: escenario en README y docs (#12) · 403 con cuerpo JSON (#13)
+**Entrega intermedia (4-11): pasos 0 a 8**
+
+- [ ] **0. Preparación**: escenario en README y docs (#12, hecho) · 403 con cuerpo JSON (#13)
 - [ ] **1. Proveedores**: core (#14) · front (#15)
 - [ ] **2. Producto y stock mínimo de seguridad**: core (#16) · front (#17)
 - [ ] **3. Clientes**: core (#18) · front (#19)
-
-**Para la entrega final (12-11): pasos 4 a 8**
-
 - [ ] **4. Lotes con vencimiento y FEFO**: lotes (#20) · FEFO (#21) · vencimientos en analytics (#22) · front (#23)
 - [ ] **5. Pedidos con estados y factura**: cabecera y confirmación (#24) · envío, factura y cancelación (#25) · analytics (#26) · front (#27)
 - [ ] **6. Reglas por grupo (rotación)**: analytics (#28) · front (#29)
 - [ ] **7. Lead time en la predicción**: analytics (#30) · front (#31)
 - [ ] **8. Panel unificado de alertas**: analytics (#32) · front (#33)
 
-Seguimiento de lo ya hecho: paginación del historial (#8) y anulación en la matriz de `ControllersTest` (#9).
+Seguimiento de lo ya hecho: paginación del historial (#8), anulación en la matriz de `ControllersTest` (#9), y grupo y stock en los productos de un proveedor (#40).
 
-### Sprint 3 - Cierre
+### Sprint 3 - Cierre (4-11 al 12-11)
+- Ajustes según la devolución del profe en la entrega intermedia
 - Pruebas end-to-end y corrección de bugs
 - Documentación final (arquitectura, endpoints, manual de usuario) y presentación
 
