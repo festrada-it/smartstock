@@ -56,9 +56,6 @@ function renderCliente() {
     aviso.innerHTML = esDeRiesgo(cliente)
         ? '<span class="tw-font-semibold tw-text-amber-700">⚠️ Cliente de riesgo: conviene limitar la cantidad o pedir pago por adelantado.</span>'
         : `<span class="tw-text-slate-500">${cliente.clasificacion >= 4 ? 'Cliente confiable.' : 'Cliente regular.'}</span>`;
-    if (fuenteClientes === ClientesEjemplo) {
-        aviso.insertAdjacentHTML('beforeend', ' <span class="badge text-bg-warning">Clientes de ejemplo hasta #18</span>');
-    }
 }
 
 async function cargarProductos() {
