@@ -21,6 +21,8 @@ import com.smartstock.core.model.Producto;
 import com.smartstock.core.model.TipoMovimiento;
 import com.smartstock.core.model.Usuario;
 import com.smartstock.core.model.Venta;
+import com.smartstock.core.model.Cliente;
+import com.smartstock.core.repository.ClienteRepository;
 import com.smartstock.core.repository.MovimientoStockRepository;
 import com.smartstock.core.repository.ProductoRepository;
 import com.smartstock.core.repository.UsuarioRepository;
@@ -33,13 +35,15 @@ public class VentaService {
     private final ProductoRepository productoRepository;
     private final UsuarioRepository usuarioRepository;
     private final MovimientoStockRepository movimientoRepository;
+    private final ClienteRepository clienteRepository;
 
     public VentaService(VentaRepository ventaRepository, ProductoRepository productoRepository,
-                        UsuarioRepository usuarioRepository, MovimientoStockRepository movimientoRepository) {
+                        UsuarioRepository usuarioRepository, MovimientoStockRepository movimientoRepository,ClienteRepository clienteRepository) {
         this.ventaRepository = ventaRepository;
         this.productoRepository = productoRepository;
         this.usuarioRepository = usuarioRepository;
         this.movimientoRepository = movimientoRepository;
+        this.clienteRepository=clienteRepository;
     }
 
     /**
@@ -53,6 +57,10 @@ public class VentaService {
 
         Venta venta = new Venta();
         venta.setUsuario(vendedor);
+        if(request.clienteId()!=null) {
+            venta.setCliente(clienteRepository.findById(request.clienteId()).filter(Cliente::isActivo)
+                    .orElseThrow(()->new RecursoNoEncontradoException("Cliente "+request.clienteId()+" no encontrado")));
+        }
         BigDecimal total = BigDecimal.ZERO;
         List<MovimientoStock> movimientos = new ArrayList<>();
 
