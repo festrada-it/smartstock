@@ -219,11 +219,11 @@ class ControllersTest {
 
     @Test
     void comprasDevuelvenValidacionesEnEspanol() throws Exception {
-        mvc.perform(post("/api/compras").header("Authorization", token(Rol.ADMIN))
+        mvc.perform(post("/api/compras").header("Authorization", token(jwt, Rol.ADMIN, "persona@example.com"))
                 .contentType("application/json").content("{\"productoId\":1,\"cantidad\":2,\"costoUnitario\":-1}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("El costo no puede ser negativo")));
-        mvc.perform(post("/api/compras").header("Authorization", token(Rol.ADMIN))
+        mvc.perform(post("/api/compras").header("Authorization", token(jwt, Rol.ADMIN, "persona@example.com"))
                 .contentType("application/json").content("{\"productoId\":1,\"cantidad\":0}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("La cantidad debe ser mayor que cero")));
