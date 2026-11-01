@@ -1,11 +1,10 @@
 const sesion = Sesion.requerir(['ADMIN']);
 
-// Misma interfaz para la API real y para los datos de ejemplo (ver config.js).
-const GruposCore = {
+// API de core-service, contrato en docs/API-PRODUCTOS-GRUPOS.md.
+const fuente = {
     listar: () => coreApi('/categorias'),
     actualizar: (id, datos) => coreApi(`/categorias/${id}`, { method: 'PUT', body: datos }),
 };
-const fuente = CONFIG.DATOS_EJEMPLO?.grupos ? GruposEjemplo : GruposCore;
 
 let grupos = [];
 let modalGrupo;
@@ -13,7 +12,6 @@ let modalGrupo;
 async function iniciar() {
     renderLayout(sesion);
     modalGrupo = new bootstrap.Modal('#modal-grupo');
-    if (fuente === GruposEjemplo) document.getElementById('aviso-ejemplo').classList.remove('d-none');
     document.getElementById('form-grupo').addEventListener('submit', guardarGrupo);
     await cargarGrupos();
 }
