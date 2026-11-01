@@ -1,6 +1,10 @@
 package com.smartstock.core.config;
 
 import java.util.List;
+import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.MediaType;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -35,7 +39,7 @@ public class SecurityConfig {
     private static final String VENDEDOR = "VENDEDOR";
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter,ObjectMapper objectMapper) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
             .cors(Customizer.withDefaults())
@@ -43,7 +47,13 @@ public class SecurityConfig {
             .exceptionHandling(e -> e
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
                 // Evita un segundo dispatch a /error que convertiría el 403 en un 401.
-                .accessDeniedHandler((request, response, error) -> response.setStatus(HttpStatus.FORBIDDEN.value())))
+                .accessDeniedHandler((request, response, error) -> {
+                    response.setStatus(HttpStatus.FORBIDDEN.value());
+                    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    objectMapper.writeValue(response.getOutputStream(),
+                            Map.of("error","No tenés permiso para realizar esta acción"));
+                }))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/health", "/actuator/health", "/api/auth/login").permitAll()
@@ -54,8 +64,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/proveedores/**").hasRole(ADMIN)
                 .requestMatchers(HttpMethod.GET, "/api/clientes/**").hasAnyRole(ADMIN, VENDEDOR)
                 .requestMatchers("/api/clientes/**").hasRole(ADMIN)
-                .requestMatchers(HttpMethod.POST, "/api/ventas/*/anular").hasRole(ADMIN)
-                .requestMatchers("/api/ventas/**", "/api/compras/**").hasAnyRole(ADMIN, VENDEDOR)
+                .requestMatchers(HttpMethod.POST, "/api/ventas/*/anular", "/api/pedidos/*/cancelar").hasRole(ADMIN)
+                .requestMatchers("/api/ventas/**", "/api/compras/**", "/api/pedidos/**").hasAnyRole(ADMIN, VENDEDOR)
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

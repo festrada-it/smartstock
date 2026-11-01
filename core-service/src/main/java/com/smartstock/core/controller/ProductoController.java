@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.smartstock.core.dto.ProductoRequest;
-import com.smartstock.core.dto.MovimientoStockResponse;
+import com.smartstock.core.dto.LoteResponse;
+import com.smartstock.core.dto.HistorialMovimientosResponse;
 import com.smartstock.core.dto.ProductoResponse;
 import com.smartstock.core.service.ProductoService;
 
@@ -44,8 +45,15 @@ public class ProductoController {
     }
 
     @GetMapping("/{id}/movimientos")
-    public List<MovimientoStockResponse> movimientos(@PathVariable Long id) {
-        return productoService.movimientos(id);
+    public HistorialMovimientosResponse movimientos(@PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return productoService.movimientos(id, page, size);
+    }
+
+    @GetMapping("/{id}/lotes")
+    public List<LoteResponse> lotes(@PathVariable Long id, @RequestParam(defaultValue = "false") boolean todos) {
+        return productoService.lotes(id, todos);
     }
 
     @PostMapping

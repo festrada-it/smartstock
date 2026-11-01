@@ -1,6 +1,11 @@
 package com.smartstock.core.model;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import jakarta.persistence.OneToMany;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -51,6 +56,12 @@ public class Producto {
 
     @Column(nullable = false)
     private Boolean activo = true;
+
+    @OneToMany(mappedBy = "producto")
+    @Fetch(FetchMode.SUBSELECT)
+    private List<Lote> lotes = new ArrayList<>();
+
+    public List<Lote> getLotes() { return lotes; }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

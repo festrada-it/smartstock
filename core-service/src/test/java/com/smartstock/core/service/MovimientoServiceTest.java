@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import java.util.List;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,16 +25,23 @@ class MovimientoServiceTest {
     @InjectMocks ProductoService servicio;
 
     @Test
+    void nuevosMovimientosUsanFechaDeNegocioArgentina() {
+        var movimiento = new MovimientoStock(new Producto(), TipoMovimiento.VENTA, -1, new Usuario());
+        var ahora = java.time.LocalDateTime.now(java.time.ZoneId.of("America/Argentina/Buenos_Aires"));
+        assertTrue(java.time.Duration.between(ahora, movimiento.getFecha()).abs().toSeconds() < 10);
+    }
+
+    @Test
     void productoInexistenteDevuelveErrorYNoConsultaMovimientos() {
-        assertThrows(RecursoNoEncontradoException.class, () -> servicio.movimientos(99L));
+        assertThrows(RecursoNoEncontradoException.class, () -> servicio.movimientos(99L, 0, 50));
         verifyNoInteractions(movimientos);
     }
 
     @Test
     void productoSinMovimientosDevuelveListaVacia() {
         when(productos.existsById(1L)).thenReturn(true);
-        when(movimientos.findHistorial(1L)).thenReturn(List.of());
-        assertTrue(servicio.movimientos(1L).isEmpty());
+        when(movimientos.findHistorial(1L, PageRequest.of(0, 50))).thenReturn(new PageImpl<>(List.of()));
+        assertTrue(servicio.movimientos(1L, 0, 50).contenido().isEmpty());
     }
 
     @Test
@@ -50,9 +59,9 @@ class MovimientoServiceTest {
         salida.setObservacion("Venta de prueba");
         MovimientoStock entrada = new MovimientoStock(producto, TipoMovimiento.COMPRA, 5, null);
         when(productos.existsById(1L)).thenReturn(true);
-        when(movimientos.findHistorial(1L)).thenReturn(List.of(salida, entrada));
+        when(movimientos.findHistorial(1L, PageRequest.of(0, 50))).thenReturn(new PageImpl<>(List.of(salida, entrada)));
 
-        var historial = servicio.movimientos(1L);
+        var historial = servicio.movimientos(1L, 0, 50).contenido();
 
         assertEquals(2, historial.size());
         assertEquals(-2, historial.getFirst().cantidad());

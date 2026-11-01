@@ -1,6 +1,7 @@
 package com.smartstock.core.model;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -35,7 +36,7 @@ public class MovimientoStock {
     private Integer cantidad;
 
     @Column(nullable = false)
-    private LocalDateTime fecha = LocalDateTime.now();
+    private LocalDateTime fecha = LocalDateTime.now(ZoneId.of("America/Argentina/Buenos_Aires"));
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id")
@@ -44,6 +45,12 @@ public class MovimientoStock {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "venta_id")
     private Venta venta;
+
+    @Column(name = "lote_id")
+    private Long loteId;
+
+    public Long getLoteId() { return loteId; }
+    public void setLoteId(Long loteId) { this.loteId = loteId; }
 
     private String observacion;
 
