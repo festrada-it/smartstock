@@ -340,15 +340,16 @@ Se calculan para el período P de 30 o 90 días y el grupo elegido.
 - **Rotación** del período = costo de ventas del período / stock promedio a costo.
   - Mensual = rotación × 30 / días de P.
   - Anualizada = rotación × 365 / días de P.
-- Se calcula total, por grupo y por producto. Sin ventas en P, el DSI no se puede calcular: se muestra "sin ventas" con semáforo rojo (dinero atrapado).
-- **Semáforo de DSI** (umbrales configurables por ADMIN; por defecto 7, 45 y 90 días):
+- Se calcula total, por grupo y por producto. Sin ventas en P, el DSI no se puede calcular: se muestra "sin ventas" con semáforo rojo (`SIN_VENTAS`).
+- **Semáforo de DSI** (umbrales configurables por ADMIN; por defecto 7, 45 y 90 días). El `estado` y su nombre son los mismos en analytics, en el front y en la documentación; el texto de ayuda va en el tooltip:
 
-  | DSI | Color | Significado |
-  |-----|-------|-------------|
-  | < `dsi_rojo_bajo` | rojo | riesgo de quiebre |
-  | ≥ `dsi_amarillo_alto` | amarillo | dinero atrapado |
-  | ≥ `dsi_rojo_alto` | rojo | dinero atrapado |
-  | en el medio | verde | — |
+  | DSI | Color | `estado` | Nombre | Ayuda (tooltip) |
+  |-----|-------|----------|--------|-----------------|
+  | < `dsi_rojo_bajo` (7) | rojo | `REPONER_YA` | ⛔ Reponer ya | Alcanza para menos de 7 días. Hay que reponer. |
+  | de `dsi_rojo_bajo` a `dsi_amarillo_alto` (7 a 45) | verde | `TODO_EN_ORDEN` | ✅ Todo en orden | Stock equilibrado con las ventas. |
+  | de `dsi_amarillo_alto` a `dsi_rojo_alto` (45 a 90) | amarillo | `FRENAR_COMPRAS` | ⚠️ Frenar compras | Hay plata inmovilizada. Revisar las próximas compras. |
+  | > `dsi_rojo_alto` (90) | rojo | `LIQUIDAR_STOCK` | ⛔ Liquidar stock | Más de 3 meses de stock. Promocionar o no recomprar. |
+  | sin ventas en P | rojo | `SIN_VENTAS` | ⛔ Sin ventas | No hubo ventas en el período: el DSI no se puede calcular. |
 
 **Dashboard 2: lento movimiento y obsolescencia**
 - **Sin ventas:** stock > 0 y ninguna venta en los últimos `dias_sin_ventas` días (90 por defecto).
@@ -403,7 +404,7 @@ Todos con el JWT de siempre, en snake_case como el resto de analytics, con su co
 
 | Ruta | Devuelve |
 |------|----------|
-| `GET /api/dashboard/inventario?periodo=30\|90&grupo_id=` | `total` (valor del stock, costo de ventas, DSI, rotación mensual y anual, semáforo), `anterior` (DSI y rotación), `por_grupo` y `por_producto`, ordenados de peor a mejor (semáforo rojo → amarillo → verde) |
+| `GET /api/dashboard/inventario?periodo=30\|90&grupo_id=` | `total` (valor del stock, costo de ventas, DSI, rotación mensual y anual, `semaforo` y `estado` del DSI según §10.2), `anterior` (DSI y rotación), `por_grupo` y `por_producto`, ordenados de peor a mejor (semáforo rojo → amarillo → verde) |
 | `GET /api/dashboard/obsolescencia?periodo=30\|90&grupo_id=` | `en_riesgo` (valor, %, valor anterior), `por_tipo` (SIN_VENTAS, BAJA_ROTACION, PROXIMO_A_VENCER y VENCIDO, cada uno con cantidad, valor, % y `disponible`) e `items` (producto, grupo, motivo, cantidad, valor y acción sugerida) |
 | `GET /api/dashboard/fill-rate?periodo=30\|90&grupo_id=&cliente_id=` | `objetivo`, `total` (solicitadas, entregadas, fill rate y semáforo), `anterior` y `por_cliente` |
 
