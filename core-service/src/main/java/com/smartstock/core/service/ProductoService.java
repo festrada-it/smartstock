@@ -3,9 +3,11 @@ package com.smartstock.core.service;
 import java.util.List;
 import java.util.Locale;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.smartstock.core.dto.HistorialMovimientosResponse;
 import com.smartstock.core.dto.ProductoRequest;
 import com.smartstock.core.dto.MovimientoStockResponse;
 import com.smartstock.core.dto.ProductoResponse;
@@ -37,12 +39,17 @@ public class ProductoService {
 
     /** Conserva el historial incluso después de la baja lógica del producto. */
     @Transactional(readOnly = true)
-    public List<MovimientoStockResponse> movimientos(Long id) {
+    public HistorialMovimientosResponse movimientos(Long id, int page, int size) {
+        if (page < 0 || size < 1 || size > 100 || (long) page * size > Integer.MAX_VALUE) {
+            throw new NegocioException("La página debe ser válida y el tamaño debe estar entre 1 y 100");
+        }
         if (!productoRepository.existsById(id)) {
             throw new RecursoNoEncontradoException("Producto " + id + " no encontrado");
         }
-        return movimientoRepository.findHistorial(id).stream()
-                .map(MovimientoStockResponse::desde).toList();
+        var historial = movimientoRepository.findHistorial(id, PageRequest.of(page, size));
+        return new HistorialMovimientosResponse(
+                historial.getContent().stream().map(MovimientoStockResponse::desde).toList(),
+                page, size, historial.getTotalElements(), historial.getTotalPages());
     }
 
     /** Lista los productos activos, filtrando opcionalmente por texto (nombre o SKU) y categoría. */
