@@ -109,7 +109,7 @@ function renderResultados() {
     contenedor.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => agregar(Number(b.dataset.id))));
 }
 
-// La cantidad no se limita al stock: si lo supera, la línea lo avisa y no se puede crear el pedido (#72).
+// La cantidad no se limita al stock: si lo supera, la línea lo avisa y core rechaza al crear (#72, plan §10.3).
 function agregar(productoId) {
     const producto = productos.find(p => p.id === productoId);
     const linea = lineas.get(productoId) ?? { producto, cantidad: 0 };
@@ -147,8 +147,7 @@ function renderLineas() {
     document.getElementById('subtotal').textContent = formatoMoneda(totales.subtotal);
     document.getElementById('importe-descuento').textContent = `− ${formatoMoneda(totales.importeDescuento)}${descuento ? ` (${descuento}%)` : ''}`;
     document.getElementById('total').textContent = formatoMoneda(totales.total);
-    document.getElementById('btn-crear').disabled = !items.length || !clienteSeleccionado() || !descuentoValido
-        || lineasSinStock(items).length > 0;
+    document.getElementById('btn-crear').disabled = !items.length || !clienteSeleccionado() || !descuentoValido;
 
     cuerpo.querySelectorAll('[data-cantidad]').forEach(input => input.addEventListener('change', () => {
         lineas.get(Number(input.dataset.cantidad)).cantidad = cantidadIngresada(input.value);
@@ -167,7 +166,6 @@ function vaciar() {
 
 async function crearPedido() {
     const boton = document.getElementById('btn-crear');
-    if (lineasSinStock([...lineas.values()]).length) return;
     boton.disabled = true;
     try {
         const pedido = await fuentePedidos.crear({
@@ -178,10 +176,13 @@ async function crearPedido() {
             items: [...lineas.values()].map(l => ({ productoId: l.producto.id, cantidad: l.cantidad })),
         });
         vaciar();
-        mostrarMensaje(`Pedido ${pedido.numeroOrden} creado para ${pedido.cliente} por ${formatoMoneda(pedido.total)}. Queda pendiente de confirmar.`);
-        await cargarPedidos(0);
+        mostrarMensaje(`Pedido ${pedido.numeroOrden} creado para ${pedido.cliente} por ${formatoMoneda(pedido.total)}. El stock queda reservado; falta que el cliente lo confirme.`);
+        (pedido.advertencias ?? []).forEach(a => mostrarMensaje(`Stock mínimo: ${a}`, 'warning'));
+        await Promise.all([cargarPedidos(0), cargarProductos()]);
     } catch (e) {
-        mostrarMensaje(e.message, 'danger');
+        // Sin stock suficiente, core no crea el pedido y registra la venta perdida del faltante.
+        if (esRechazoPorStock(e, [...lineas.values()])) mostrarMensaje(MENSAJE_SIN_STOCK, 'warning');
+        else mostrarMensaje(e.message, 'danger');
         renderLineas();
     }
 }
@@ -254,8 +255,7 @@ async function ejecutar(accion, id) {
         }
         if (accion === 'confirmar') {
             const confirmado = await fuentePedidos.confirmar(id);
-            mostrarMensaje(`Orden ${confirmado.numeroOrden} confirmada. Ya se descontó el stock.`);
-            mostrarFaltantes(confirmado);
+            mostrarMensaje(`Orden ${confirmado.numeroOrden} confirmada por el cliente.`);
             (confirmado.advertencias ?? []).forEach(a => mostrarMensaje(`Stock mínimo: ${a}`, 'warning'));
         }
         if (accion === 'enviar') mostrarMensaje(`Orden ${(await fuentePedidos.enviar(id)).numeroOrden} enviada.`);
@@ -264,21 +264,13 @@ async function ejecutar(accion, id) {
             mostrarMensaje(`Orden ${entregado.numeroOrden} entregada. Factura ${entregado.numeroFactura}.`);
         }
         if (accion === 'cancelar') {
-            if (!confirm(`¿Cancelar la orden ${pedido.numeroOrden}?${pedido.estado === 'CONFIRMADO' ? ' Se devuelve el stock.' : ''}`)) return;
+            if (!confirm(`¿Cancelar la orden ${pedido.numeroOrden}? Se devuelve el stock reservado.`)) return;
             mostrarMensaje(`Orden ${(await fuentePedidos.cancelar(id)).numeroOrden} cancelada.`);
         }
         await Promise.all([cargarPedidos(0), cargarProductos()]);
     } catch (e) {
         mostrarMensaje(e.message, 'danger');
     }
-}
-
-/** Confirmación parcial (#24 ampliado): si core devuelve cantidades solicitadas, se muestra el faltante. */
-function mostrarFaltantes(pedido) {
-    const conFaltante = pedido.items.filter(i => i.cantidadSolicitada != null && i.cantidadSolicitada > i.cantidad);
-    if (!conFaltante.length) return;
-    mostrarMensaje(`Se confirmó con el stock disponible. Faltante: ${conFaltante
-        .map(i => `${i.producto} (pedido ${i.cantidadSolicitada}, entregado ${i.cantidad})`).join('; ')}.`, 'warning');
 }
 
 async function guardarFecha(evento) {
@@ -299,7 +291,6 @@ const TITULOS = { detalle: 'Detalle del pedido', comprobante: 'Orden de compra c
 
 function mostrarDocumento(p, tipo) {
     const cliente = clientes.find(c => c.id === p.clienteId);
-    const hayParcial = p.items.some(i => i.cantidadSolicitada != null && i.cantidadSolicitada !== i.cantidad);
     document.getElementById('area-impresion').innerHTML = `
         <div class="tw-mb-4 tw-flex tw-flex-wrap tw-items-start tw-justify-between tw-gap-2">
             <div>
@@ -321,11 +312,10 @@ function mostrarDocumento(p, tipo) {
             <dt class="col-sm-3">Fecha de envío</dt><dd class="col-sm-9">${p.fechaEnvio ? formatoFecha(p.fechaEnvio) : 'A convenir'}</dd>
         </dl>
         <table class="table table-sm align-middle tw-tabular-nums">
-            <thead><tr><th>Producto</th><th>Marca</th>${hayParcial ? '<th class="text-end">Solicitado</th>' : ''}<th class="text-end">Cantidad</th><th class="text-end">Precio unit.</th><th class="text-end">Subtotal</th></tr></thead>
+            <thead><tr><th>Producto</th><th>Marca</th><th class="text-end">Cantidad</th><th class="text-end">Precio unit.</th><th class="text-end">Subtotal</th></tr></thead>
             <tbody>${p.items.map(i => `
                 <tr>
                     <td>${escaparHtml(i.producto)}</td><td>${escaparHtml(i.marca || '-')}</td>
-                    ${hayParcial ? `<td class="text-end">${i.cantidadSolicitada ?? i.cantidad}</td>` : ''}
                     <td class="text-end">${i.cantidad}</td>
                     <td class="text-end">${formatoMoneda(i.precioUnitario)}</td><td class="text-end">${formatoMoneda(i.subtotal)}</td>
                 </tr>`).join('')}</tbody>
