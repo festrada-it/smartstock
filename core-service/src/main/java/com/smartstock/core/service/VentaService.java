@@ -124,8 +124,17 @@ public class VentaService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("Usuario " + emailUsuario + " no encontrado"));
         Map<Long, Producto> productos = bloquearProductos(venta.getDetalles().stream()
                 .map(d -> d.getProducto().getId()).toList());
+        var movimientos = restituirStock(venta, usuario, productos);
+        movimientos.forEach(m -> m.setObservacion("Cancelación de pedido " + venta.getNumeroOrden()));
+        venta.setEstado(EstadoPedido.CANCELADO);
+        movimientoRepository.saveAll(movimientos);
+        return venta;
+    }
+
+    List<MovimientoStock> restituirStock(Venta venta, Usuario usuario, Map<Long, Producto> productos) {
         List<MovimientoStock> movimientos = new ArrayList<>();
         for (DetalleVenta detalle : venta.getDetalles()) {
+            if (detalle.getCantidad() == 0) continue;
             Producto producto = productos.get(detalle.getProducto().getId());
             try {
                 producto.setStockActual(Math.addExact(producto.getStockActual(), detalle.getCantidad()));
@@ -135,12 +144,9 @@ public class VentaService {
             MovimientoStock movimiento = new MovimientoStock(producto, TipoMovimiento.AJUSTE,
                     detalle.getCantidad(), usuario);
             movimiento.setVenta(venta);
-            movimiento.setObservacion("Cancelación de pedido " + venta.getNumeroOrden());
             movimientos.add(movimiento);
         }
-        venta.setEstado(EstadoPedido.CANCELADO);
-        movimientoRepository.saveAll(movimientos);
-        return venta;
+        return movimientos;
     }
 
     List<MovimientoStock> descontarStock(Venta venta, Usuario usuario, Map<Long, Producto> productos) {
