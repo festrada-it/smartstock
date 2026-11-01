@@ -121,11 +121,10 @@ function renderCarrito() {
     }).join('') || '<tr><td colspan="5" class="text-center text-muted">Buscá un producto y hacé click para agregarlo</td></tr>';
 
     document.getElementById('total').textContent = formatoMoneda(total);
-    // No se puede finalizar mientras alguna línea pida más que el stock (#72).
-    document.getElementById('btn-finalizar').disabled = carrito.size === 0 || lineasSinStock([...carrito.values()]).length > 0;
+    document.getElementById('btn-finalizar').disabled = carrito.size === 0;
 
     cuerpo.querySelectorAll('[data-cantidad]').forEach(input => input.addEventListener('change', () => {
-        // Se respeta lo que escribió el vendedor; si supera el stock, se avisa en la línea.
+        // Se respeta lo que escribió el vendedor; si supera el stock, se avisa en la línea y core decide al guardar (#72).
         carrito.get(Number(input.dataset.cantidad)).cantidad = cantidadIngresada(input.value);
         renderCarrito();
     }));
@@ -137,7 +136,6 @@ function renderCarrito() {
 
 async function finalizarVenta() {
     const boton = document.getElementById('btn-finalizar');
-    if (lineasSinStock([...carrito.values()]).length) return;
     boton.disabled = true;
     try {
         const cliente = clienteSeleccionado();
@@ -154,7 +152,9 @@ async function finalizarVenta() {
         document.getElementById('buscador').value = '';
         await Promise.all([cargarProductos(), cargarVentasDelDia()]);
     } catch (e) {
-        mostrarMensaje(e.message, 'danger');
+        // Sin stock suficiente, core no registra la venta y guarda la venta perdida del faltante (plan §10.3).
+        if (esRechazoPorStock(e, [...carrito.values()])) mostrarMensaje(MENSAJE_SIN_STOCK, 'warning');
+        else mostrarMensaje(e.message, 'danger');
         boton.disabled = false;
     }
 }
