@@ -26,6 +26,7 @@ class AnulacionServiceTest {
     @Mock ProductoRepository productos;
     @Mock UsuarioRepository usuarios;
     @Mock MovimientoStockRepository movimientos;
+    @Mock LoteService loteService;
     @InjectMocks VentaService servicio;
 
     private Venta venta;

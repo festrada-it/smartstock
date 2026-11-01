@@ -54,7 +54,8 @@ class MovimientoIntegracionTest {
         assertEquals(2, cuerpo.get("totalPaginas").asInt());
         assertIds(cuerpo, empateMayor, empateMenor);
         var movimiento = cuerpo.get("contenido").get(1);
-        assertEquals(9, movimiento.size());
+        assertEquals(10, movimiento.size());
+        assertTrue(movimiento.get("loteId").isNull());
         assertEquals(productoId.longValue(), movimiento.get("productoId").asLong());
         assertEquals("VENTA", movimiento.get("tipo").asText());
         assertEquals(-2, movimiento.get("cantidad").asInt());

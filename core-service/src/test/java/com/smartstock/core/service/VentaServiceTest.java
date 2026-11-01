@@ -41,6 +41,7 @@ class VentaServiceTest {
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private MovimientoStockRepository movimientoRepository;
 
+    @Mock LoteService loteService;
     @InjectMocks private VentaService ventaService;
 
     private Producto yerba;
