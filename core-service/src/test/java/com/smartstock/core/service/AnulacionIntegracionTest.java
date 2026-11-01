@@ -100,7 +100,7 @@ class AnulacionIntegracionTest {
                     servicio.anular(id, email);
                     return true;
                 } catch (NegocioException e) {
-                    assertTrue(e.getMessage().contains("ya está anulada"));
+                    assertTrue(e.getMessage().contains("ya está cancelado"));
                     return false;
                 }
             };

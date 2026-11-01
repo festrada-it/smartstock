@@ -33,6 +33,22 @@ public class PedidoController {
         return pedidos.confirmar(id, autenticacion.getName());
     }
 
+    @PostMapping("/{id}/enviar")
+    public PedidoResponse enviar(@PathVariable Long id) { return pedidos.enviar(id); }
+
+    @PostMapping("/{id}/entregar")
+    public PedidoResponse entregar(@PathVariable Long id) { return pedidos.entregar(id); }
+
+    @PostMapping("/{id}/cancelar")
+    public PedidoResponse cancelar(@PathVariable Long id, Authentication autenticacion) {
+        return pedidos.cancelar(id, autenticacion.getName());
+    }
+
+    @PutMapping("/{id}/fecha-envio")
+    public PedidoResponse cambiarFechaEnvio(@PathVariable Long id, @Valid @RequestBody FechaEnvioRequest request) {
+        return pedidos.cambiarFechaEnvio(id, request.fechaEnvio());
+    }
+
     @GetMapping
     public PaginaPedidosResponse listar(
             @RequestParam(required = false) EstadoPedido estado,

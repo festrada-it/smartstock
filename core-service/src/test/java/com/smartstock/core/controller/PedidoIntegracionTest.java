@@ -118,7 +118,8 @@ class PedidoIntegracionTest {
         assertEquals(1, stock(otro));
         assertEquals(0, movimientos());
         assertEquals("PENDIENTE", get("/api/pedidos/" + id).getBody().get("estado").asText());
-        assertEquals(400, post("/api/ventas/" + id + "/anular", null, Rol.ADMIN).getStatusCode().value());
+        assertEquals(200, post("/api/ventas/" + id + "/anular", null, Rol.ADMIN).getStatusCode().value());
+        assertEquals("CANCELADO", get("/api/pedidos/" + id).getBody().get("estado").asText());
         assertEquals(10, stock(producto));
     }
 

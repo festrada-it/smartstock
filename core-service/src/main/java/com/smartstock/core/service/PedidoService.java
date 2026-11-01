@@ -3,6 +3,8 @@ package com.smartstock.core.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.TreeMap;
 
@@ -102,6 +104,55 @@ public class PedidoService {
         venta.setEstado(EstadoPedido.CONFIRMADO);
         movimientos.saveAll(salidas);
         return PedidoResponse.desde(venta, advertencias);
+    }
+
+    @Transactional
+    public PedidoResponse enviar(Long id) {
+        var venta = bloquearPedido(id);
+        if (venta.getEstado() != EstadoPedido.CONFIRMADO) {
+            throw new NegocioException("Solo se puede enviar un pedido CONFIRMADO");
+        }
+        if (venta.getFechaEnvio() == null) venta.setFechaEnvio(hoy());
+        venta.setEstado(EstadoPedido.ENVIADO);
+        return PedidoResponse.desde(venta);
+    }
+
+    @Transactional
+    public PedidoResponse entregar(Long id) {
+        var venta = bloquearPedido(id);
+        if (venta.getEstado() != EstadoPedido.ENVIADO) {
+            throw new NegocioException("Solo se puede entregar un pedido ENVIADO");
+        }
+        venta.setNumeroFactura(String.format(Locale.ROOT, "FAC-0001-%08d", ventas.siguienteNumeroFactura()));
+        venta.setEstado(EstadoPedido.ENTREGADO);
+        return PedidoResponse.desde(venta);
+    }
+
+    @Transactional
+    public PedidoResponse cancelar(Long id, String email) {
+        return PedidoResponse.desde(servicioVentas.cancelar(id, email));
+    }
+
+    @Transactional
+    public PedidoResponse cambiarFechaEnvio(Long id, LocalDate fechaEnvio) {
+        var venta = bloquearPedido(id);
+        if (venta.getEstado() != EstadoPedido.PENDIENTE && venta.getEstado() != EstadoPedido.CONFIRMADO) {
+            throw new NegocioException("Solo se puede pactar la fecha de un pedido PENDIENTE o CONFIRMADO");
+        }
+        if (fechaEnvio == null || fechaEnvio.isBefore(hoy())) {
+            throw new NegocioException("La fecha de envío es obligatoria y no puede ser anterior a hoy");
+        }
+        venta.setFechaEnvio(fechaEnvio);
+        return PedidoResponse.desde(venta);
+    }
+
+    private Venta bloquearPedido(Long id) {
+        return ventas.findByIdParaActualizar(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Pedido " + id + " no encontrado"));
+    }
+
+    private LocalDate hoy() {
+        return LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
     }
 
     public PedidoResponse obtener(Long id) {
