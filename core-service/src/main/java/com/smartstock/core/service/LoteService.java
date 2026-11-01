@@ -54,7 +54,7 @@ public class LoteService {
         return lote;
     }
 
-    /** shortcut: puente legacy por id; #21 reemplaza por FEFO y registra los consumos originales. */
+    /** Ajustes del catálogo y restituciones históricas sin trazabilidad de consumo. */
     public void ajustarDisponible(Producto producto, int diferencia) {
         asegurarApertura(producto);
         List<Lote> disponibles = lotes.bloquearPorProducto(producto.getId());
