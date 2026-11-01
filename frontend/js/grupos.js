@@ -27,11 +27,6 @@ async function cargarGrupos() {
     }
 }
 
-/** 0.10 → "10%"; sin decimales de más. */
-function formatoPorcentaje(umbral) {
-    return `${Number((umbral * 100).toFixed(1))}%`;
-}
-
 function renderTabla() {
     const cuerpo = document.getElementById('tabla-grupos');
     if (!grupos.length) {
@@ -55,18 +50,20 @@ function abrirModal(grupo) {
     document.getElementById('grupo-id').value = grupo.id;
     document.getElementById('grupo-nombre').value = grupo.nombre;
     document.getElementById('grupo-dias').value = grupo.diasAlertaVencimiento ?? 60;
-    document.getElementById('grupo-umbral').value = Number(((grupo.umbralRotacion ?? 0.10) * 100).toFixed(1));
+    document.getElementById('grupo-umbral').value = porcentajeDesdeUmbral(grupo.umbralRotacion ?? 0.10);
     modalGrupo.show();
 }
 
 async function guardarGrupo(evento) {
     evento.preventDefault();
     const id = document.getElementById('grupo-id').value;
+    const original = grupos.find(g => g.id === Number(id));
     // Se mandan siempre las dos reglas: si faltan, core las vuelve a los valores por defecto (#16).
+    // Si el umbral no cambió, va el valor original de core para no perder precisión.
     const datos = {
         nombre: document.getElementById('grupo-nombre').value.trim(),
         diasAlertaVencimiento: Number(document.getElementById('grupo-dias').value),
-        umbralRotacion: Number((Number(document.getElementById('grupo-umbral').value) / 100).toFixed(4)),
+        umbralRotacion: umbralParaEnviar(document.getElementById('grupo-umbral').value, original?.umbralRotacion),
     };
     try {
         await fuente.actualizar(id, datos);
