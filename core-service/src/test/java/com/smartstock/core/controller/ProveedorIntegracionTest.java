@@ -50,6 +50,40 @@ class ProveedorIntegracionTest {
         assertEquals(404,pedir(HttpMethod.GET,"/api/proveedores/"+id+"/productos",null,Rol.ADMIN).getStatusCode().value());
     }
 
+    @Test
+    void productosIncluyenCategoriaYStockSinPerderCamposOriginales() {
+        crear();
+        String sku = "IT-" + UUID.randomUUID();
+        Long categoriaId = db.queryForObject("SELECT id FROM categorias ORDER BY id LIMIT 1", Long.class);
+        String categoriaNombre = db.queryForObject("SELECT nombre FROM categorias WHERE id=?", String.class, categoriaId);
+        productoId = db.queryForObject(
+                "INSERT INTO productos(sku,nombre,marca,proveedor_id,categoria_id,precio,stock_actual,stock_minimo) "
+                        + "VALUES (?,'Producto con stock','Marca IT',?,?,10,5,30) RETURNING id",
+                Long.class, sku, id, categoriaId);
+
+        var respuesta = pedir(HttpMethod.GET, "/api/proveedores/" + id + "/productos", null, Rol.VENDEDOR);
+        assertEquals(200, respuesta.getStatusCode().value());
+        assertEquals(1, respuesta.getBody().size());
+        JsonNode producto = respuesta.getBody().get(0);
+        assertEquals(productoId.longValue(), producto.path("id").asLong());
+        assertEquals(sku, producto.path("sku").asText());
+        assertEquals("Producto con stock", producto.path("nombre").asText());
+        assertEquals("Marca IT", producto.path("marca").asText());
+        assertEquals(categoriaNombre, producto.path("categoriaNombre").asText());
+        assertTrue(producto.path("stockActual").isInt());
+        assertEquals(5, producto.path("stockActual").asInt());
+        assertTrue(producto.path("stockMinimo").isInt());
+        assertEquals(30, producto.path("stockMinimo").asInt());
+
+        db.update("UPDATE productos SET categoria_id=null WHERE id=?", productoId);
+        JsonNode sinCategoria = pedir(HttpMethod.GET, "/api/proveedores/" + id + "/productos", null, Rol.ADMIN)
+                .getBody().get(0);
+        assertTrue(sinCategoria.has("categoriaNombre"));
+        assertTrue(sinCategoria.get("categoriaNombre").isNull());
+        assertEquals(5, sinCategoria.path("stockActual").asInt());
+        assertEquals(30, sinCategoria.path("stockMinimo").asInt());
+    }
+
     @ParameterizedTest @ValueSource(strings={"{\"leadTimeDias\":0,\"clasificacion\":3,\"calidad\":\"BUENA\"}","{\"leadTimeDias\":2,\"clasificacion\":6,\"calidad\":\"BUENA\"}","{\"leadTimeDias\":2,\"clasificacion\":0,\"calidad\":\"BUENA\"}","{\"leadTimeDias\":2,\"clasificacion\":3,\"calidad\":\"DESCONOCIDA\"}"})
     void validaRangosYCalidadConErrorJson(String datos) {
         String cuerpo=datos.replace("{","{\"nombre\":\"Proveedor\",");
