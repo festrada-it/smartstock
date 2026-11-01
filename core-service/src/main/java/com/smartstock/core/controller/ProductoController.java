@@ -33,8 +33,9 @@ public class ProductoController {
 
     @GetMapping
     public List<ProductoResponse> listar(@RequestParam(required = false) String q,
-                                        @RequestParam(required = false) Long categoriaId) {
-        return productoService.listar(q, categoriaId);
+                                        @RequestParam(required = false) Long categoriaId,
+                                        @RequestParam(required = false) Long proveedorId) {
+        return productoService.listar(q, categoriaId,proveedorId);
     }
 
     @GetMapping("/{id}")
