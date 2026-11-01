@@ -25,6 +25,13 @@ class MovimientoServiceTest {
     @InjectMocks ProductoService servicio;
 
     @Test
+    void nuevosMovimientosUsanFechaDeNegocioArgentina() {
+        var movimiento = new MovimientoStock(new Producto(), TipoMovimiento.VENTA, -1, new Usuario());
+        var ahora = java.time.LocalDateTime.now(java.time.ZoneId.of("America/Argentina/Buenos_Aires"));
+        assertTrue(java.time.Duration.between(ahora, movimiento.getFecha()).abs().toSeconds() < 10);
+    }
+
+    @Test
     void productoInexistenteDevuelveErrorYNoConsultaMovimientos() {
         assertThrows(RecursoNoEncontradoException.class, () -> servicio.movimientos(99L, 0, 50));
         verifyNoInteractions(movimientos);
