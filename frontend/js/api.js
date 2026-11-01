@@ -63,11 +63,13 @@ async function llamarApi(baseUrl, ruta, opciones = {}) {
     if (!respuesta.ok) {
         // Mensaje por defecto si el servicio no manda cuerpo JSON (por ejemplo, el 403 de Spring Security).
         let mensaje = MENSAJES_HTTP[respuesta.status] || `Error ${respuesta.status}`;
+        let datos = null;
         try {
-            const error = await respuesta.json();
-            mensaje = error.error || error.detail || mensaje;
+            datos = await respuesta.json();
+            mensaje = datos.error || datos.detail || mensaje;
         } catch { /* respuesta sin cuerpo JSON */ }
-        throw new Error(mensaje);
+        // status y datos permiten distinguir rechazos, por ejemplo el de stock insuficiente (#72).
+        throw Object.assign(new Error(mensaje), { status: respuesta.status, datos });
     }
     return respuesta.status === 204 ? null : respuesta.json();
 }
