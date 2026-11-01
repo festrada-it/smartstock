@@ -6,7 +6,7 @@
 
 SmartStock pasa a modelar un **distribuidor mayorista (trade)**: compra mercadería a **proveedores** y la revende a **clientes** que son supermercados chicos (Día Express, Carrefour Express, Chino Almagro, Jumbo Express). El modelo sirve para cualquier PyME que compre y revenda.
 
-Flujo: proveedor → **lote** (con vencimiento) → stock → **pedido** del cliente → confirmación (descuenta stock FEFO) → envío → entrega + **factura**.
+Flujo: proveedor → **lote** (con vencimiento) → stock → **pedido** del cliente (exige stock y lo reserva con FEFO; si falta, **venta perdida**) → confirmación del cliente → envío → entrega + **factura**. Ver §10.3 (regla del 01-11-2026).
 
 ## 2. Decisiones tomadas
 
@@ -172,9 +172,9 @@ erDiagram
 | — | `POST /ventas`: acepta `clienteId` | — | 3 |
 | — | `POST /compras` **(cambia el contrato)**: suma `proveedorId`, `fechaVencimiento`, `fechaEntrega` y `costoUnitario`, y crea un lote | — | 4 |
 | GET | `/productos/{id}/lotes` · `/productos`: suma `proximoVencimiento` | Admin, Vendedor | 4 |
-| POST | `/pedidos` (crea PENDIENTE) · GET `/pedidos?estado=&clienteId=&desde=&hasta=` · GET `/pedidos/{id}` | Admin, Vendedor | 5 |
-| POST | `/pedidos/{id}/confirmar` (descuenta FEFO) · `/enviar` · `/entregar` (genera la factura) | Admin, Vendedor | 5 |
-| POST | `/pedidos/{id}/cancelar` (devuelve el stock si estaba confirmado) | Admin | 5 |
+| POST | `/pedidos` (crea PENDIENTE y reserva stock; si falta, 400 y venta perdida) · GET `/pedidos?estado=&clienteId=&desde=&hasta=` · GET `/pedidos/{id}` | Admin, Vendedor | 5 |
+| POST | `/pedidos/{id}/confirmar` (el cliente aceptó; no mueve stock) · `/enviar` · `/entregar` (genera la factura) | Admin, Vendedor | 5 |
+| POST | `/pedidos/{id}/cancelar` (devuelve el stock reservado, desde PENDIENTE o CONFIRMADO) | Admin | 5 |
 
 ### analytics-service (`/api`)
 
@@ -190,7 +190,7 @@ erDiagram
 ### Reglas de cálculo
 
 - **Total del pedido:** suma de (cantidad × precio unitario) × (1 − descuento / 100), redondeado a 2 decimales. Si el descuento no está entre 0 y 20, la respuesta es 400.
-- **FEFO:** al confirmar, se bloquean los productos en orden de id y, dentro de cada producto, los lotes con disponible > 0 ordenados por vencimiento, con los NULL (sin vencimiento) al final, y por id. Cada parte consumida queda en `consumos_lote`. Si falta stock se hace rollback de todo.
+- **FEFO:** al crear el pedido (regla del 01-11-2026, §10.3), se bloquean los productos en orden de id y, dentro de cada producto, los lotes con disponible > 0 ordenados por vencimiento, con los NULL (sin vencimiento) al final, y por id. Cada parte consumida queda en `consumos_lote`. Si falta stock, no se crea el pedido y se registra la venta perdida del faltante (§10.3).
 - **Stock mínimo:** no bloquea la venta. El producto está "debajo del mínimo" cuando `stock ≤ mínimo`; vale para el estado del catálogo (`BAJO_MINIMO`), la criticidad de analytics y la alerta STOCK_MINIMO del panel. Si al confirmar un pedido un producto llega al mínimo o queda debajo, la respuesta incluye `advertencias` y el producto aparece en el panel de alertas.
 - **Vencimiento:** un lote entra en alerta si vence dentro de los N días de su grupo. Criticidad ALTA si ya venció o faltan ≤ 7 días, MEDIA si faltan ≤ N/2 y BAJA en el resto.
 - **Rotación:** unidades vendidas en 30 días / stock promedio de esos 30 días (reconstruido con `stock_historico`). Si es ≥ umbral, el producto está sano. Si es menor, hay alerta de baja rotación con sugerencia escalonada: menor a la mitad del umbral, "no recomprar / promocionar"; si no, "comprar menos". Con stock promedio 0 no se calcula.
@@ -303,6 +303,7 @@ Por eso el contrato va en el primer commit de cada PR.
 ## 10. Dashboards de dirección
 
 > Estado: **aprobado** (31-10-2026). P1 a P11 con la propuesta; P12 con la decisión de §10.8. Alcance: solo lo pedido para los 3 dashboards.
+> **Cambio del 01-11-2026:** la regla de pedidos de §10.3 reemplaza la confirmación parcial (P7 y P8). Ver P13.
 
 **Reglas:**
 - Los cálculos van en **analytics**, que solo lee la base.
@@ -323,8 +324,8 @@ Se reutiliza lo que ya existe:
 | Script | Qué agrega | Responsable |
 |--------|-----------|-------------|
 | `10_parametros_y_datos_inventario.sql` | Parámetros `dsi_rojo_bajo` (7), `dsi_amarillo_alto` (45), `dsi_rojo_alto` (90), `dias_sin_ventas` (90), `fill_rate_objetivo` (95), `riesgo_amarillo_pct` (5) y `riesgo_rojo_pct` (10). Datos de prueba: productos de rotación rápida y lenta, y 2 o 3 productos con stock y **sin ventas en 90 días**. | core (Nicolas) |
-| `08_pedidos.sql` (#24, todavía sin mergear) | `detalle_venta.cantidad_solicitada`. `detalle_venta.cantidad` pasa a ser la **cantidad entregada** (ver P8). Historial existente: `cantidad_solicitada = cantidad`. | core (Nicolas) |
-| `11_datos_fill_rate.sql` (después de `08`) | Datos de prueba de entregas parciales **distintas por cliente**, para que el Fill Rate no dé 100% en todo. | core (Nicolas) |
+| Tabla `ventas_perdidas` (#74, script nuevo o en el `08` de #24 si todavía no se mergeó) | Una fila por línea rechazada por falta de stock: fecha, cliente, vendedor, producto, cantidad pedida, cantidad disponible y precio unitario. El faltante es pedida − disponible. | core (Nicolas) |
+| `11_datos_fill_rate.sql` | Datos de prueba de ventas perdidas **distintas por cliente**, para que el Fill Rate no dé 100% en todo. | core (Nicolas) |
 
 Analytics toma valores por defecto si un parámetro no está en la base (`obtener_parametros`), así que el dashboard 1 no tiene que esperar al script `10`.
 
@@ -373,8 +374,10 @@ Se calculan para el período P de 30 o 90 días y el grupo elegido.
   | Sin ventas | "No recomprar / promocionar" |
 
 **Dashboard 3: Fill Rate por cadena**
-- **Fill Rate** = Σ unidades entregadas / Σ unidades solicitadas × 100.
-- Cuentan las líneas de los pedidos CONFIRMADO, ENVIADO y ENTREGADO, por fecha del pedido (ver P6).
+- **Fill Rate** = unidades vendidas / (unidades vendidas + unidades perdidas) × 100.
+  - **Vendidas:** líneas de los pedidos CONFIRMADO, ENVIADO y ENTREGADO, por fecha del pedido (ver P6).
+  - **Perdidas:** el faltante (pedida − disponible) de las ventas perdidas, por fecha del rechazo (§10.3).
+- **Ventas perdidas en $** = faltante × precio unitario, por cliente y por producto.
 - Se calcula total y por cliente: Día Express, Carrefour Express, Jumbo Express y Chino Almagro.
 - Semáforo: verde ≥ 98%, amarillo de 95% a 98%, rojo < 95%. La línea objetivo sale de `fill_rate_objetivo` (95). Ver P11.
 
@@ -383,19 +386,23 @@ Se calculan para el período P de 30 o 90 días y el grupo elegido.
 - DSI, $ en riesgo y Fill Rate llevan semáforo. **Rotación va sin semáforo**: solo el valor y la variación (P12).
 - Cada una con la variación contra el período anterior de igual largo, calculada con la misma fórmula sobre los días P anteriores. En el $ en riesgo, la variación cubre sin ventas y baja rotación, porque no hay historia de lotes; se aclara en el tooltip (P9).
 
-### 10.3 Cambio de regla: confirmación parcial (#24, #25 y anulación)
+### 10.3 Cambio de regla: stock suficiente al crear y ventas perdidas (01-11-2026)
 
-Hoy, si falta stock, el pedido no se confirma, y así el Fill Rate daría siempre 100%. Con el cambio:
+Reemplaza la confirmación parcial aprobada el 31-10 (P7 y P8): sin `cantidad_solicitada` ni faltante en el pedido. Ver P13.
 
-- **#24, `POST /api/pedidos/{id}/confirmar`:**
-  - Cada línea entrega `min(solicitada, disponible)`, con el bloqueo actual (`bloquearProductos`), y FEFO cuando llegue #21.
-  - Se guarda `cantidad_solicitada`. `cantidad` queda como entregada, y el faltante es la diferencia.
-  - La respuesta informa el faltante por línea en `advertencias`.
-  - Subtotal y total se recalculan sobre lo entregado (P7).
-  - Si no hay nada disponible de ninguna línea, no se confirma (400) (P7).
-- **#25:** cancelar devuelve lo entregado (`cantidad`) y la factura usa lo entregado. Con P8 no cambia la lógica, porque ya trabaja con `cantidad`.
-- **Anulación de Nico (#7):** devuelve `detalle_venta.cantidad`. Con P8 sigue siendo correcta sin cambios.
-- **#27 (front):** al confirmar, muestra el faltante por línea.
+- **#24, `POST /api/pedidos`:**
+  - Solo crea el pedido si hay stock suficiente de **todas** las líneas.
+  - Si alguna línea no alcanza, responde **400** con el detalle de qué falta y cuánto hay disponible, **no crea el pedido** y registra la venta perdida de esas líneas.
+  - Al crear, el pedido queda **PENDIENTE y reserva el stock**: lo descuenta con el bloqueo actual (`bloquearProductos`), y con FEFO cuando haya lotes (#21).
+- **Confirmar** significa que el cliente aceptó la orden: pasa a CONFIRMADO y **no mueve stock**. Enviar y entregar siguen igual.
+- **#25, cancelar** un pedido PENDIENTE o CONFIRMADO **devuelve el stock** reservado. La factura y el comprobante usan la cantidad del pedido.
+- **Venta perdida (#74, core):** por cada línea sin stock suficiente se guarda fecha, cliente, vendedor, producto, cantidad pedida, cantidad disponible y precio unitario. Se registra **solo el faltante** (pedida − disponible). En $ = faltante × precio unitario.
+- **Ventas (`POST /api/ventas`)** usa la misma regla: core rechaza y registra.
+- **Front, Pedidos (#27) y Ventas:**
+  - no cambian la cantidad que escribió el vendedor;
+  - muestran en la línea "Stock insuficiente: hay X disponibles", sin bloquear el guardado;
+  - si core rechaza, muestran: "No hay stock suficiente. Debe solicitarlo al proveedor y, una vez ingresado, puede hacer el pedido."
+- **Anulación de Nico (#7):** sin cambios.
 
 ### 10.4 Endpoints de analytics
 
@@ -405,7 +412,7 @@ Todos con el JWT de siempre, en snake_case como el resto de analytics, con su co
 |------|----------|
 | `GET /api/dashboard/inventario?periodo=30\|90&grupo_id=` | `total` (valor del stock, costo de ventas, DSI, rotación mensual y anual, semáforo), `anterior` (DSI y rotación), `por_grupo` y `por_producto`, ordenados de peor a mejor (semáforo rojo → amarillo → verde) |
 | `GET /api/dashboard/obsolescencia?periodo=30\|90&grupo_id=` | `en_riesgo` (valor, %, valor anterior), `por_tipo` (SIN_VENTAS, BAJA_ROTACION, PROXIMO_A_VENCER y VENCIDO, cada uno con cantidad, valor, % y `disponible`) e `items` (producto, grupo, motivo, cantidad, valor y acción sugerida) |
-| `GET /api/dashboard/fill-rate?periodo=30\|90&grupo_id=&cliente_id=` | `objetivo`, `total` (solicitadas, entregadas, fill rate y semáforo), `anterior` y `por_cliente` |
+| `GET /api/dashboard/fill-rate?periodo=30\|90&grupo_id=&cliente_id=` | `objetivo`, `total` (vendidas, perdidas, fill rate, ventas perdidas en $ y semáforo), `anterior`, `por_cliente` (lo mismo por cliente) y `por_producto` (perdidas y ventas perdidas en $) |
 
 No hay un endpoint aparte para las tarjetas: cada una se arma con el `total` y el `anterior` de su dashboard.
 
@@ -425,7 +432,8 @@ No hay un endpoint aparte para las tarjetas: cada una se arma con el `total` y e
    - **Fill Rate:**
      - filtro por cliente;
      - tarjeta con el total;
-     - barras por cadena con la línea objetivo y el semáforo.
+     - barras por cadena con la línea objetivo y el semáforo;
+     - ventas perdidas en $ por cliente y tabla por producto.
 4. **Lo que ya existe sigue igual, debajo:** el panel de alertas (#33), la proyección de stock, la tendencia y la tabla de predicciones.
 
 ### 10.6 Tareas propuestas
@@ -437,10 +445,10 @@ No hay un endpoint aparte para las tarjetas: cada una se arma con el `total` y e
 | D.3 Tarjetas y pestaña "Salud del inventario" | front | Florencia | nuevo | contrato de D.2 | 1 |
 | D.4 Endpoint `/api/dashboard/obsolescencia`: sin ventas y baja rotación ahora, vencimientos cuando estén los lotes | analytics | Marcelo | nuevo, reutiliza #28 y #22 | #28; #22 y #20 para vencimientos | 2 |
 | D.5 Pestaña "Lento movimiento" y tarjeta "$ en riesgo" | front | Florencia | nuevo | contrato de D.4 | 2 |
-| D.6 Cantidad solicitada y confirmación parcial | core + db | Nicolas | **amplía #24 y #25** | — | 3 |
-| D.7 Script `11`: entregas parciales por cliente | core + db | Nicolas | **amplía #24** | `08` | 3 |
-| D.8 Endpoint `/api/dashboard/fill-rate` | analytics | Marcelo | nuevo | contrato de #24 | 3 |
-| D.9 Pestaña "Fill Rate" y tarjeta | front | Florencia | nuevo; el faltante al confirmar **amplía #27** | contrato de D.8 | 3 |
+| D.6 Reserva al crear y ventas perdidas (regla del 01-11) | core + db | Nicolas | **amplía #24 y #25**; registro en #74 | — | 3 |
+| D.7 Script `11`: ventas perdidas por cliente | core + db | Nicolas | #74 | tabla de #74 | 3 |
+| D.8 Endpoint `/api/dashboard/fill-rate` | analytics | Marcelo | nuevo | contrato de #74 | 3 |
+| D.9 Pestaña "Fill Rate" y tarjeta | front | Florencia | nuevo; el aviso de stock insuficiente **amplía #27** | contrato de D.8 | 3 |
 
 **#32 y #33 (panel de alertas) no se tocan.** Los dashboards son pestañas aparte y el panel sigue debajo.
 
@@ -462,13 +470,14 @@ No hay un endpoint aparte para las tarjetas: cada una se arma con el `total` y e
 | P3 | Período en baja rotación | Ventana fija de 30 días de #28; el filtro de período solo define la comparación con el período anterior |
 | P4 | Doble conteo | Cada producto cuenta una sola vez en el $ en riesgo, con prioridad vencido > próximo a vencer > sin ventas > baja rotación; la tabla muestra el motivo principal |
 | P5 | Acción de "sin ventas" | "No recomprar / promocionar" |
-| P6 | Qué entra en el Fill Rate | Pedidos CONFIRMADO, ENVIADO y ENTREGADO (sin PENDIENTE ni CANCELADO). Entregada = cantidad confirmada |
-| P7 | Confirmación parcial | Total y factura sobre lo entregado, sin backorder (el faltante solo se registra). Si no hay nada disponible, no se confirma (400) |
-| P8 | Columnas | Se reutiliza `detalle_venta.cantidad` como entregada y se agrega solo `cantidad_solicitada` |
+| P6 | Qué entra en el Fill Rate | Vendidas = pedidos CONFIRMADO, ENVIADO y ENTREGADO (sin PENDIENTE ni CANCELADO). Perdidas = faltante de las ventas perdidas (P13) |
+| P7 | Confirmación parcial | **Reemplazada el 01-11-2026 por P13.** Era: total y factura sobre lo entregado, sin backorder |
+| P8 | Columnas | **Reemplazada el 01-11-2026 por P13.** No se agrega `cantidad_solicitada`; `detalle_venta.cantidad` es lo vendido |
 | P9 | Variación del $ en riesgo | Solo sin ventas y baja rotación; vencimientos no tiene historia; se aclara en el tooltip |
-| P10 | Demanda con faltantes | Queda anotado: #26 sigue con lo entregado. Usar `cantidad_solicitada` en el predictor se decide después de la demo |
+| P10 | Demanda con faltantes | Queda anotado: #26 sigue con lo vendido. Usar las ventas perdidas en el predictor se decide después de la demo |
 | P11 | Semáforo del Fill Rate | Fijo: verde ≥ 98%, amarillo 95–98% y rojo < 95%. `fill_rate_objetivo` solo mueve la línea del gráfico |
 | P12 | Semáforos de las tarjetas | **Rotación sin semáforo**: solo el valor y la variación. **$ en riesgo**: verde < 5% del valor del stock, amarillo de 5% a 10%, rojo > 10%, con los parámetros `riesgo_amarillo_pct` y `riesgo_rojo_pct` |
+| P13 | Regla de pedidos (01-11-2026) | Crear exige stock suficiente de todas las líneas y lo reserva; si falta, 400 y **venta perdida** del faltante (pedida − disponible), sin crear el pedido. Confirmar no mueve stock; cancelar PENDIENTE o CONFIRMADO lo devuelve. Ventas usa la misma regla. Fill Rate = vendidas / (vendidas + perdidas); ventas perdidas en $ = faltante × precio unitario. Ver §10.3 |
 
 ## 11. Próximos pasos (fuera de alcance)
 
