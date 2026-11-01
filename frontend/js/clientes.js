@@ -13,7 +13,6 @@ async function iniciar() {
     modalCliente = new bootstrap.Modal('#modal-cliente');
     modalDetalle = new bootstrap.Modal('#modal-detalle');
 
-    if (fuenteClientes === ClientesEjemplo) document.getElementById('aviso-ejemplo').classList.remove('d-none');
     if (esAdmin) document.getElementById('btn-nuevo').classList.remove('d-none');
 
     document.getElementById('btn-nuevo').addEventListener('click', () => abrirModalCliente());
