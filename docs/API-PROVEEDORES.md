@@ -23,8 +23,19 @@ Respuesta: los mismos campos más `id` y `activo`. Nombre obligatorio de hasta
 `leadTimeDias` obligatorio y mayor a cero; `clasificacion` obligatoria de 1 a 5;
 `calidad` obligatoria, exactamente BUENA/REGULAR/MALA. Los textos se recortan.
 
-Productos del proveedor: lista de `{id, sku, nombre, marca}`. No incluye
-productos inactivos. Proveedor inexistente o inactivo: 404 incluso en su lista
+Productos del proveedor: lista de `{id, sku, nombre, marca, categoriaNombre,
+stockActual, stockMinimo}`. La ampliación de #40 conserva todos los campos
+originales y usa los mismos nombres que `ProductoResponse`. `categoriaNombre`
+es `null` si el producto no tiene categoría; los stocks son enteros. La categoría
+se consulta con `LEFT JOIN FETCH`, sin consultas adicionales por producto.
+
+```json
+[{"id":1,"sku":"ALM-001","nombre":"Arroz","marca":"Marca ejemplo","categoriaNombre":"Almacén","stockActual":5,"stockMinimo":30}]
+```
+
+El frontend puede comparar `stockActual` con `stockMinimo` para resaltar stock
+bajo. Esta ampliación requiere `database/init/05_grupos_stock_minimo.sql` aplicado.
+No incluye productos inactivos. Proveedor inexistente o inactivo: 404 incluso en su lista
 de productos. La baja conserva las asociaciones históricas con los productos.
 
 Sin token: 401; permisos insuficientes: 403; datos inválidos (incluida calidad
