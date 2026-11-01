@@ -117,12 +117,15 @@ public class PedidoService {
         if (desde != null && hasta != null && desde.isAfter(hasta)) {
             throw new NegocioException("Desde no puede ser posterior a hasta");
         }
+        if (LocalDate.MAX.equals(hasta)) {
+            throw new NegocioException("La fecha hasta supera el máximo permitido");
+        }
         Specification<Venta> filtros = (root, query, cb) -> {
             var condiciones = new ArrayList<jakarta.persistence.criteria.Predicate>();
             if (estado != null) condiciones.add(cb.equal(root.get("estado"), estado));
             if (clienteId != null) condiciones.add(cb.equal(root.get("cliente").get("id"), clienteId));
             if (desde != null) condiciones.add(cb.greaterThanOrEqualTo(root.get("fecha"), desde.atStartOfDay()));
-            if (hasta != null) condiciones.add(cb.lessThanOrEqualTo(root.get("fecha"), hasta.atTime(java.time.LocalTime.MAX)));
+            if (hasta != null) condiciones.add(cb.lessThan(root.get("fecha"), hasta.plusDays(1).atStartOfDay()));
             if (numeroOrden != null) condiciones.add(cb.equal(root.get("numeroOrden"), numeroOrden));
             return cb.and(condiciones.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
