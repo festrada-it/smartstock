@@ -1,6 +1,7 @@
 import jwt
 import pandas as pd
 import pytest
+from datetime import date, timedelta
 from fastapi.testclient import TestClient
 
 from app import config, db
@@ -86,6 +87,9 @@ def db_falsa_proveedores(monkeypatch):
     monkeypatch.setattr(db, "obtener_producto", lambda id: next((p for p in PRODUCTOS_CON_PROVEEDOR if p["id"] == id), None))
     monkeypatch.setattr(db, "obtener_parametros", lambda: dict(config.PARAMETROS_POR_DEFECTO))
     monkeypatch.setattr(db, "ventas_diarias", lambda dias, producto_id=None: ventas)
+    # Sin base: la proyección también lee el stock histórico.
+    monkeypatch.setattr(db, "stock_historico", lambda producto_id, stock_actual, dias: pd.Series(
+        [float(stock_actual)] * dias, index=[date.today() - timedelta(days=dias - 1 - i) for i in range(dias)]))
 
 
 def test_predicciones_suma_los_campos_de_reposicion_sin_quitar_ninguno(db_falsa_proveedores):
