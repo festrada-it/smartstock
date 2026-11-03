@@ -36,13 +36,19 @@ def analizar_reposicion(demanda_proyectada: list[float] | None, stock_actual: in
         "comprar_ahora": None,
     }
     if demanda_proyectada is None:
+        # Sin historial no hay punto de reposición, pero con el stock en el mínimo o por debajo
+        # la compra es segura aunque la demanda sea desconocida.
+        if stock_actual <= stock_minimo:
+            resultado["fecha_reposicion"] = hoy
+            resultado["comprar_ahora"] = True
         return resultado
     if not demanda_proyectada:
         raise ValueError("La demanda proyectada no puede estar vacía")
     if any(not math.isfinite(demanda) or demanda < 0 for demanda in demanda_proyectada):
         raise ValueError("La demanda proyectada debe ser finita y no negativa")
 
-    punto = demanda_proyectada[0] * plazo_efectivo + stock_minimo
+    # Se redondea antes de comparar para que el punto mostrado coincida con la decisión.
+    punto = round(demanda_proyectada[0] * plazo_efectivo + stock_minimo, 2)
     if not math.isfinite(punto):
         raise ValueError("El punto de reposición debe ser finito")
     comprar_ahora = stock_actual <= punto

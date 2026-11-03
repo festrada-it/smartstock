@@ -60,10 +60,18 @@ def test_sin_cruce_en_horizonte():
     assert resultado["fecha_reposicion"] is None
 
 
-def test_sin_historial_no_afirma_que_no_hay_que_comprar():
-    assert analizar_reposicion(None, 0, 30, 7, 10, HOY) == {
+def test_sin_historial_y_stock_sobre_el_minimo_no_afirma_nada():
+    assert analizar_reposicion(None, 31, 30, 7, 10, HOY) == {
         "lead_time_dias": 7, "punto_reposicion": None,
         "fecha_reposicion": None, "comprar_ahora": None,
+    }
+
+
+@pytest.mark.parametrize("stock", [0, 29, 30])
+def test_sin_historial_con_stock_en_el_minimo_o_debajo_compra_hoy(stock):
+    assert analizar_reposicion(None, stock, 30, 7, 10, HOY) == {
+        "lead_time_dias": 7, "punto_reposicion": None,
+        "fecha_reposicion": HOY, "comprar_ahora": True,
     }
 
 
@@ -72,13 +80,19 @@ def test_demanda_cero_sigue_considerando_stock_minimo():
     assert analizar_reposicion([0.0] * 60, 31, 30, 7, 7, HOY)["fecha_reposicion"] is None
 
 
-def test_no_redondea_antes_de_comparar_ni_modifica_demanda():
+def test_punto_se_redondea_a_dos_decimales_antes_de_comparar_y_no_modifica_demanda():
     demanda = [0.333] * 60
     resultado = analizar_reposicion(demanda, 1, 0, 3, 3, HOY)
-    assert resultado["punto_reposicion"] == pytest.approx(0.999)
-    assert resultado["comprar_ahora"] is False
-    assert resultado["fecha_reposicion"] == HOY + timedelta(days=1)
+    # 0.333 * 3 = 0.999 -> 1.0: lo mostrado coincide con la decisión (1 <= 1.0)
+    assert resultado["punto_reposicion"] == 1.0
+    assert resultado["comprar_ahora"] is True
+    assert resultado["fecha_reposicion"] == HOY
     assert demanda == [0.333] * 60
+
+
+def test_punto_redondeado_no_deja_valores_con_ruido_de_coma_flotante():
+    resultado = analizar_reposicion([33.3333333] * 60, 1000, 0, 1, 1, HOY)
+    assert resultado["punto_reposicion"] == 33.33
 
 
 @pytest.mark.parametrize("demanda", [[], [-1.0], [float("nan")], [float("inf")]])

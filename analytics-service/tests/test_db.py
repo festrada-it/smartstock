@@ -34,3 +34,53 @@ def test_demanda_excluye_ventas_anuladas(ventas_reales):
     serie = db.ventas_diarias(30, producto_id=1)
     assert serie.loc[ventas_reales, 1] == 2
     assert serie[1].sum() == 2
+
+
+@pytest.fixture
+def productos_con_proveedor(monkeypatch):
+    if os.environ.get("SMARTSTOCK_INTEGRACION") != "true":
+        pytest.skip("Requiere PostgreSQL; CI habilita SMARTSTOCK_INTEGRACION=true")
+    with db.engine.connect() as conexion:
+        # Tablas temporales: ocultan a las reales durante la prueba y no modifican ninguna base.
+        conexion.execute(text("CREATE TEMP TABLE proveedores (id BIGINT, nombre TEXT, lead_time_dias INTEGER, "
+                              "calidad TEXT, clasificacion INTEGER, activo BOOLEAN)"))
+        conexion.execute(text("CREATE TEMP TABLE productos (id BIGINT, sku TEXT, nombre TEXT, stock_actual INTEGER, "
+                              "stock_minimo INTEGER, costo NUMERIC, precio NUMERIC, proveedor_id BIGINT, activo BOOLEAN)"))
+        conexion.execute(text("INSERT INTO proveedores VALUES (1,'Activo',7,'MALA',1,true),(2,'Dado de baja',5,'BUENA',5,false)"))
+        conexion.execute(text("INSERT INTO productos VALUES "
+                              "(1,'A','Con proveedor',100,30,10,15,1,true),"
+                              "(2,'B','Proveedor dado de baja',50,30,10,15,2,true),"
+                              "(3,'C','Sin proveedor',50,30,10,15,NULL,true),"
+                              "(4,'D','Producto inactivo',1,1,1,1,1,false)"))
+        monkeypatch.setattr(db, "engine", SimpleNamespace(connect=lambda: nullcontext(conexion)))
+        yield
+        conexion.rollback()
+
+
+def test_productos_incluyen_el_proveedor_activo(productos_con_proveedor):
+    productos = {p["id"]: p for p in db.obtener_productos()}
+
+    assert set(productos) == {1, 2, 3}  # el producto inactivo no aparece
+    assert productos[1]["proveedor_id"] == 1
+    assert productos[1]["proveedor"] == "Activo"
+    assert productos[1]["proveedor_lead_time_dias"] == 7
+    assert productos[1]["proveedor_clasificacion"] == 1
+    assert productos[1]["proveedor_calidad"] == "MALA"
+
+
+def test_un_proveedor_dado_de_baja_se_trata_como_sin_proveedor(productos_con_proveedor):
+    productos = {p["id"]: p for p in db.obtener_productos()}
+
+    for id_producto in (2, 3):
+        assert productos[id_producto]["proveedor_id"] is None
+        assert productos[id_producto]["proveedor"] is None
+        assert productos[id_producto]["proveedor_lead_time_dias"] is None
+
+
+def test_obtener_producto_incluye_el_proveedor_y_conserva_costo_y_precio(productos_con_proveedor):
+    producto = db.obtener_producto(1)
+
+    assert producto["proveedor"] == "Activo"
+    assert (producto["costo"], producto["precio"]) == (10.0, 15.0)
+    assert db.obtener_producto(4) is None
+    assert db.obtener_producto(2)["proveedor_id"] is None
