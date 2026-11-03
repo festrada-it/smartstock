@@ -7,7 +7,8 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
-public record VentaRequest(@NotEmpty @Valid List<Item> items) {
+public record VentaRequest(@NotEmpty @Valid List<Item> items,Long clienteId) {
+    public VentaRequest(List<Item> items) { this(items,null); }
 
     public record Item(@NotNull Long productoId, @NotNull @Min(1) Integer cantidad) {
     }

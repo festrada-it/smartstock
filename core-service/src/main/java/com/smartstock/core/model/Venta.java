@@ -29,6 +29,10 @@ public class Venta {
     @JoinColumn(name = "usuario_id")
     private Usuario usuario;
 
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="cliente_id")
+    private Cliente cliente;
+
     @Column(nullable = false)
     private LocalDateTime fecha = LocalDateTime.now();
 
@@ -51,6 +55,8 @@ public class Venta {
 
     public Usuario getUsuario() { return usuario; }
     public void setUsuario(Usuario usuario) { this.usuario = usuario; }
+    public Cliente getCliente() { return cliente; }
+    public void setCliente(Cliente cliente) { this.cliente=cliente; }
 
     public LocalDateTime getFecha() { return fecha; }
     public void setFecha(LocalDateTime fecha) { this.fecha = fecha; }

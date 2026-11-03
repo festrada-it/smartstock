@@ -22,9 +22,12 @@
 
         <div class="tarjeta">
             <div class="tw-mb-4 tw-flex tw-flex-wrap tw-gap-3">
-                <input id="filtro-texto" type="search" class="form-control tw-max-w-xs" placeholder="Buscar por nombre o SKU">
+                <input id="filtro-texto" type="search" class="form-control tw-max-w-xs" placeholder="Buscar por nombre, SKU o marca">
                 <select id="filtro-categoria" class="form-select tw-max-w-[14rem]">
-                    <option value="">Todas las categorías</option>
+                    <option value="">Todos los grupos</option>
+                </select>
+                <select id="filtro-proveedor" class="form-select tw-max-w-[14rem]">
+                    <option value="">Todos los proveedores</option>
                 </select>
                 <select id="filtro-estado" class="form-select tw-max-w-[14rem]">
                     <option value="">Todos los estados</option>
@@ -39,7 +42,9 @@
                         <tr>
                             <th>SKU</th>
                             <th>Producto</th>
-                            <th>Categoría</th>
+                            <th>Marca</th>
+                            <th>Grupo</th>
+                            <th>Proveedor</th>
                             <th class="text-end">Precio</th>
                             <th class="text-end solo-admin d-none">Costo</th>
                             <th class="text-end">Stock</th>
@@ -49,7 +54,7 @@
                         </tr>
                     </thead>
                     <tbody id="tabla-productos" class="tw-tabular-nums">
-                        <tr><td colspan="9" class="text-center text-muted">Cargando...</td></tr>
+                        <tr><td colspan="11" class="text-center text-muted">Cargando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -76,9 +81,17 @@
                         <label class="form-label" for="producto-nombre">Nombre</label>
                         <input id="producto-nombre" class="form-control" required maxlength="150">
                     </div>
+                    <div class="col-6">
+                        <label class="form-label" for="producto-marca">Marca</label>
+                        <input id="producto-marca" class="form-control" maxlength="100">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="producto-categoria">Grupo</label>
+                        <select id="producto-categoria" class="form-select"><option value="">Sin grupo</option></select>
+                    </div>
                     <div class="col-12">
-                        <label class="form-label" for="producto-categoria">Categoría</label>
-                        <select id="producto-categoria" class="form-select"><option value="">Sin categoría</option></select>
+                        <label class="form-label" for="producto-proveedor">Proveedor principal</label>
+                        <select id="producto-proveedor" class="form-select"><option value="">Sin proveedor</option></select>
                     </div>
                     <div class="col-6">
                         <label class="form-label" for="producto-precio">Precio de venta</label>
@@ -93,8 +106,9 @@
                         <input id="producto-stock" type="number" min="0" step="1" class="form-control" required>
                     </div>
                     <div class="col-6">
-                        <label class="form-label" for="producto-minimo">Stock mínimo (umbral de seguridad)</label>
+                        <label class="form-label" for="producto-minimo">Stock mínimo de seguridad</label>
                         <input id="producto-minimo" type="number" min="0" step="1" class="form-control" required>
+                        <div class="form-text">Por defecto 30. Si el stock llega a este valor o baja de él, se genera una alerta.</div>
                     </div>
                 </div>
             </div>
@@ -144,6 +158,7 @@
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/layout.js"></script>
+<script src="js/catalogo-datos.js"></script>
 <script src="js/productos.js"></script>
 </body>
 </html>

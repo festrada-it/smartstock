@@ -35,23 +35,34 @@ function paginaInicio(rol) {
     return rol === 'ADMIN' ? 'dashboard.html' : 'ventas.html';
 }
 
+const MENSAJES_HTTP = {
+    403: 'No tenés permiso para realizar esta acción',
+    404: 'No se encontró el recurso pedido',
+};
+
 async function llamarApi(baseUrl, ruta, opciones = {}) {
     const sesion = Sesion.obtener();
     const headers = { 'Content-Type': 'application/json' };
     if (sesion) headers.Authorization = `Bearer ${sesion.token}`;
 
-    const respuesta = await fetch(baseUrl + ruta, {
-        method: opciones.method || 'GET',
-        headers,
-        body: opciones.body !== undefined ? JSON.stringify(opciones.body) : undefined,
-    });
+    let respuesta;
+    try {
+        respuesta = await fetch(baseUrl + ruta, {
+            method: opciones.method || 'GET',
+            headers,
+            body: opciones.body !== undefined ? JSON.stringify(opciones.body) : undefined,
+        });
+    } catch {
+        throw new Error('No se pudo conectar con el servidor. Revisá que los servicios estén levantados.');
+    }
 
     if (respuesta.status === 401 && sesion) {
         Sesion.cerrar();
         throw new Error('La sesión expiró');
     }
     if (!respuesta.ok) {
-        let mensaje = `Error ${respuesta.status}`;
+        // Mensaje por defecto si el servicio no manda cuerpo JSON (por ejemplo, el 403 de Spring Security).
+        let mensaje = MENSAJES_HTTP[respuesta.status] || `Error ${respuesta.status}`;
         try {
             const error = await respuesta.json();
             mensaje = error.error || error.detail || mensaje;
