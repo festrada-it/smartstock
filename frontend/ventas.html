@@ -28,6 +28,14 @@
             <!-- Venta actual -->
             <section class="tarjeta lg:tw-col-span-3 tw-flex tw-flex-col">
                 <h2 class="tw-mb-3 tw-text-base tw-font-semibold">Venta actual</h2>
+                <div class="tw-mb-4 tw-rounded-lg tw-border tw-bg-slate-50 tw-p-3">
+                    <label class="form-label tw-font-semibold" for="cliente">Cliente</label>
+                    <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-3">
+                        <select id="cliente" class="form-select tw-max-w-xs"><option value="">Cargando clientes...</option></select>
+                        <div id="cliente-calificacion" class="tw-flex tw-items-center tw-gap-2" aria-live="polite"></div>
+                    </div>
+                    <div id="cliente-aviso" class="tw-mt-2 tw-text-sm"></div>
+                </div>
                 <table class="table align-middle">
                     <thead>
                         <tr>
@@ -60,7 +68,7 @@
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead>
-                        <tr><th>#</th><th>Hora</th><th>Vendedor</th><th>Detalle</th><th class="text-end">Total</th></tr>
+                        <tr><th>#</th><th>Hora</th><th>Cliente</th><th>Vendedor</th><th>Detalle</th><th class="text-end">Total</th></tr>
                     </thead>
                     <tbody id="ventas-hoy" class="tw-tabular-nums"></tbody>
                 </table>
@@ -73,6 +81,8 @@
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/layout.js"></script>
+<script src="js/calificacion.js"></script>
+<script src="js/clientes-fuente.js"></script>
 <script src="js/ventas.js"></script>
 </body>
 </html>
