@@ -51,6 +51,8 @@ public class Lote {
     public Integer getCantidadDisponible() { return cantidadDisponible; }
     public void setCantidadDisponible(Integer cantidad) { this.cantidadDisponible = cantidad; }
     public LocalDate getFechaVencimiento() { return fechaVencimiento; }
+    /** Un lote que vence hoy todavía se puede vender; sin fecha, no vence. */
+    public boolean estaVencido(LocalDate hoy) { return fechaVencimiento != null && fechaVencimiento.isBefore(hoy); }
     public LocalDate getFechaEntrega() { return fechaEntrega; }
     public BigDecimal getCostoUnitario() { return costoUnitario; }
     public boolean isEsApertura() { return esApertura; }

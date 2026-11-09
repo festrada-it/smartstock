@@ -29,9 +29,7 @@ public class PedidoController {
     public PedidoResponse obtener(@PathVariable Long id) { return pedidos.obtener(id); }
 
     @PostMapping("/{id}/confirmar")
-    public PedidoResponse confirmar(@PathVariable Long id, Authentication autenticacion) {
-        return pedidos.confirmar(id, autenticacion.getName());
-    }
+    public PedidoResponse confirmar(@PathVariable Long id) { return pedidos.confirmar(id); }
 
     @PostMapping("/{id}/enviar")
     public PedidoResponse enviar(@PathVariable Long id) { return pedidos.enviar(id); }

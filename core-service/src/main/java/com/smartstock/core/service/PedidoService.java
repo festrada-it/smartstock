@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Locale;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.TreeMap;
 
 import org.springframework.data.domain.PageRequest;
@@ -24,27 +25,27 @@ import com.smartstock.core.repository.*;
 public class PedidoService {
     private final VentaRepository ventas;
     private final ClienteRepository clientes;
-    private final ProductoRepository productos;
     private final UsuarioRepository usuarios;
     private final MovimientoStockRepository movimientos;
     private final VentaService servicioVentas;
 
     public PedidoService(VentaRepository ventas, ClienteRepository clientes,
-                         ProductoRepository productos, UsuarioRepository usuarios,
+                         UsuarioRepository usuarios,
                          MovimientoStockRepository movimientos, VentaService servicioVentas) {
         this.ventas = ventas;
         this.clientes = clientes;
-        this.productos = productos;
         this.usuarios = usuarios;
         this.movimientos = movimientos;
         this.servicioVentas = servicioVentas;
     }
 
-    @Transactional
+    /** Crea el pedido PENDIENTE y reserva el stock. Si falta, no crea nada y guarda la venta perdida. */
+    @Transactional(noRollbackFor = StockInsuficienteException.class)
     public PedidoResponse crear(PedidoRequest request, String email) {
+        var usuario = usuario(email);
         var venta = new Venta();
         venta.setEstado(EstadoPedido.PENDIENTE);
-        venta.setUsuario(usuario(email));
+        venta.setUsuario(usuario);
         venta.setCliente(clientes.findById(request.clienteId()).filter(Cliente::isActivo)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Cliente " + request.clienteId() + " no encontrado")));
         if (request.fechaEnvio() != null && request.fechaEnvio().isBefore(venta.getFecha().toLocalDate())) {
@@ -64,66 +65,45 @@ public class PedidoService {
                 throw new NegocioException("La cantidad del producto supera el máximo permitido");
             }
         }
+        var bloqueados = servicioVentas.bloquearProductos(new ArrayList<>(cantidades.keySet()));
         BigDecimal subtotal = BigDecimal.ZERO;
         for (var item : cantidades.entrySet()) {
-            var producto = productos.findById(item.getKey()).filter(p -> Boolean.TRUE.equals(p.getActivo()))
-                    .orElseThrow(() -> new RecursoNoEncontradoException("Producto " + item.getKey() + " no encontrado"));
+            var producto = bloqueados.get(item.getKey());
+            if (!Boolean.TRUE.equals(producto.getActivo())) {
+                throw new RecursoNoEncontradoException("Producto " + item.getKey() + " no encontrado");
+            }
             var detalle = new DetalleVenta(producto, item.getValue(), producto.getPrecio());
             subtotal = subtotal.add(detalle.getSubtotal());
-            detalle.setCantidadEntregada(0);
             venta.agregarDetalle(detalle);
         }
         if (subtotal.compareTo(new BigDecimal("9999999999.99")) > 0) {
             throw new NegocioException("El importe del pedido supera el máximo permitido");
         }
-        venta.setSubtotal(BigDecimal.ZERO.setScale(2));
-        venta.setTotal(BigDecimal.ZERO.setScale(2));
-        servicioVentas.asignarNumeroOrden(venta);
-        return PedidoResponse.desde(ventas.save(venta));
-    }
-
-    @Transactional
-    public PedidoResponse confirmar(Long id, String email) {
-        var venta = ventas.findByIdParaActualizar(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Pedido " + id + " no encontrado"));
-        if (venta.getEstado() != EstadoPedido.PENDIENTE) {
-            throw new NegocioException("Solo se puede confirmar un pedido PENDIENTE");
-        }
-        var usuario = usuario(email);
-        var bloqueados = servicioVentas.bloquearProductos(venta.getDetalles().stream()
-                .map(d -> d.getProducto().getId()).toList());
-        boolean hayEntrega = false;
-        var advertencias = new ArrayList<String>();
-        for (var detalle : venta.getDetalles()) {
-            var producto = bloqueados.get(detalle.getProducto().getId());
-            int entregada = Math.min(detalle.getCantidadSolicitada(), producto.getStockActual());
-            detalle.setCantidadEntregada(entregada);
-            hayEntrega |= entregada > 0;
-            int faltante = detalle.getCantidadSolicitada() - entregada;
-            if (faltante > 0) {
-                advertencias.add("Producto " + producto.getId() + " (" + producto.getNombre() + "): faltan "
-                        + faltante + " unidades (solicitadas: " + detalle.getCantidadSolicitada()
-                        + ", entregadas: " + entregada + ")");
-            }
-        }
-        if (!hayEntrega) {
-            throw new NegocioException("Ningún producto tiene stock disponible para confirmar el pedido");
-        }
-        var salidas = servicioVentas.descontarStock(venta, usuario, bloqueados);
-        for (var producto : salidas.stream().map(MovimientoStock::getProducto).distinct().toList()) {
-            if (producto.getStockActual() <= producto.getStockMinimo()) {
-                advertencias.add("Producto " + producto.getId() + " (" + producto.getNombre()
-                        + "): stock " + producto.getStockActual() + " menor o igual al mínimo " + producto.getStockMinimo());
-            }
-        }
-        BigDecimal subtotal = venta.getDetalles().stream().map(DetalleVenta::getSubtotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        var vendibles = servicioVentas.lotesVendibles(bloqueados, cantidades, usuario, venta.getCliente());
         venta.setSubtotal(subtotal.setScale(2, RoundingMode.HALF_UP));
         venta.setTotal(subtotal.multiply(BigDecimal.ONE.subtract(venta.getDescuentoPct().movePointLeft(2)))
                 .setScale(2, RoundingMode.HALF_UP));
+        servicioVentas.asignarNumeroOrden(venta);
+        var guardada = ventas.save(venta);
+        movimientos.saveAll(servicioVentas.descontarStock(guardada, usuario, bloqueados, vendibles));
+        var advertencias = bloqueados.values().stream()
+                .filter(p -> p.getStockActual() <= p.getStockMinimo())
+                .sorted(Comparator.comparing(Producto::getId))
+                .map(p -> "Producto " + p.getId() + " (" + p.getNombre() + "): stock " + p.getStockActual()
+                        + " menor o igual al mínimo " + p.getStockMinimo())
+                .toList();
+        return PedidoResponse.desde(guardada, advertencias);
+    }
+
+    /** El cliente aceptó la orden: el stock ya se reservó al crear. */
+    @Transactional
+    public PedidoResponse confirmar(Long id) {
+        var venta = bloquearPedido(id);
+        if (venta.getEstado() != EstadoPedido.PENDIENTE) {
+            throw new NegocioException("Solo se puede confirmar un pedido PENDIENTE");
+        }
         venta.setEstado(EstadoPedido.CONFIRMADO);
-        movimientos.saveAll(salidas);
-        return PedidoResponse.desde(venta, advertencias);
+        return PedidoResponse.desde(venta);
     }
 
     @Transactional

@@ -31,9 +31,6 @@ public class DetalleVenta {
     @Column(nullable = false)
     private Integer cantidad;
 
-    @Column(name = "cantidad_solicitada", nullable = false)
-    private Integer cantidadSolicitada;
-
     @Column(name = "precio_unitario", nullable = false)
     private BigDecimal precioUnitario;
 
@@ -43,7 +40,6 @@ public class DetalleVenta {
     public DetalleVenta(Producto producto, Integer cantidad, BigDecimal precioUnitario) {
         this.producto = producto;
         this.cantidad = cantidad;
-        this.cantidadSolicitada = cantidad;
         this.precioUnitario = precioUnitario;
     }
 
@@ -59,8 +55,6 @@ public class DetalleVenta {
     public Producto getProducto() { return producto; }
 
     public Integer getCantidad() { return cantidad; }
-    public Integer getCantidadSolicitada() { return cantidadSolicitada; }
-    public void setCantidadEntregada(Integer cantidad) { this.cantidad = cantidad; }
 
     public BigDecimal getPrecioUnitario() { return precioUnitario; }
 }

@@ -21,7 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.smartstock.core.dto.VentaRequest;
 import com.smartstock.core.dto.VentaResponse;
-import com.smartstock.core.exception.NegocioException;
+import com.smartstock.core.exception.StockInsuficienteException;
 import com.smartstock.core.model.Producto;
 import com.smartstock.core.model.Rol;
 import com.smartstock.core.model.Usuario;
@@ -46,6 +46,7 @@ class VentaServiceTest {
     @Mock LoteService loteService;
     @Mock com.smartstock.core.repository.LoteRepository lotes;
     @Mock com.smartstock.core.repository.ConsumoLoteRepository consumos;
+    @Mock com.smartstock.core.repository.VentaPerdidaRepository ventasPerdidas;
     @InjectMocks private VentaService ventaService;
 
     private Producto yerba;
@@ -85,13 +86,16 @@ class VentaServiceTest {
     }
 
     @Test
-    void registrarVentaSinStockSuficienteFallaAntesDeMovimientos() {
-        when(ventaRepository.save(any(Venta.class))).thenAnswer(inv -> inv.getArgument(0));
+    void registrarVentaSinStockSuficienteRegistraLaVentaPerdidaSinCrearNada() {
+        when(lotes.bloquearDisponiblesFefo(1L)).thenReturn(List.of(new com.smartstock.core.model.Lote(yerba, null, 10, null, java.time.LocalDate.now(), BigDecimal.ZERO, true)));
         VentaRequest request = new VentaRequest(List.of(new VentaRequest.Item(1L, 11)));
 
-        NegocioException error = assertThrows(NegocioException.class, () -> ventaService.registrar(request, EMAIL));
+        StockInsuficienteException error = assertThrows(StockInsuficienteException.class, () -> ventaService.registrar(request, EMAIL));
 
-        assertEquals(true, error.getMessage().contains("Stock insuficiente"));
+        assertEquals("No hay stock suficiente", error.getMessage());
+        assertEquals(1, error.getFaltantes().get(0).faltante());
+        verify(ventasPerdidas).saveAll(anyList());
+        verify(ventaRepository, never()).save(any());
         verify(movimientoRepository, never()).saveAll(any());
     }
 }

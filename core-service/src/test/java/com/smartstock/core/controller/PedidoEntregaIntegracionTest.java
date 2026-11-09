@@ -79,26 +79,6 @@ class PedidoEntregaIntegracionTest {
         assertEquals(0, movimientos(id, "AJUSTE"));
     }
 
-    @Test void facturaDePedidoParcialConservaImportesYCantidadEntregada() {
-        var datos = datos(List.of(item(producto, 12)));
-        datos.put("descuentoPct", 10);
-        long id = crear(datos);
-        assertEquals(200, post(id, "confirmar", Rol.VENDEDOR).getStatusCode().value());
-        assertEquals(200, post(id, "enviar", Rol.VENDEDOR).getStatusCode().value());
-        var respuesta = post(id, "entregar", Rol.VENDEDOR);
-        assertEquals(200, respuesta.getStatusCode().value());
-        var pedido = respuesta.getBody();
-        assertEquals(12, linea(pedido, producto).get("cantidadSolicitada").asInt());
-        assertEquals(10, linea(pedido, producto).get("cantidadEntregada").asInt());
-        assertEquals(2, linea(pedido, producto).get("faltante").asInt());
-        assertEquals(100.10, pedido.get("subtotal").asDouble());
-        assertEquals(90.09, pedido.get("total").asDouble());
-        assertTrue(pedido.get("numeroFactura").asText().matches("FAC-0001-\\d{8,}"));
-        assertEquals("ENTREGADA", pedido.get("estadoEntrega").asText());
-        assertEquals(0, stock(producto));
-        assertEquals(1, movimientos(id, "VENTA"));
-    }
-
     @Test void enviarSinFechaAsignaHoyArgentinaSinNuevoMovimiento() {
         long id = confirmado(List.of(item(producto, 1)));
         var respuesta = post(id, "enviar", Rol.ADMIN);
@@ -124,13 +104,14 @@ class PedidoEntregaIntegracionTest {
             }
             assertNull(db.queryForObject("SELECT numero_factura FROM ventas WHERE id=?", String.class, id));
         }
-        assertEquals(10, stock(producto));
+        assertEquals(9, stock(producto));
         assertEquals(0, movimientos(id, "AJUSTE"));
     }
 
-    @Test void cancelarPendienteYAliasLegacyNoDevuelvenStock() {
+    @Test void cancelarPendienteYAliasLegacyDevuelvenElStockReservado() {
         for (boolean legacy : List.of(false, true)) {
             long id = crear(datos(List.of(item(producto, 4))));
+            assertEquals(6, stock(producto));
             String ruta = legacy ? "/api/ventas/" + id + "/anular" : ruta(id, "cancelar");
             var respuesta = pedir(HttpMethod.POST, ruta, null, Rol.ADMIN);
             assertEquals(200, respuesta.getStatusCode().value());
@@ -142,8 +123,8 @@ class PedidoEntregaIntegracionTest {
             }
             assertEquals("CANCELADO", db.queryForObject("SELECT estado FROM ventas WHERE id=?", String.class, id));
             assertTrue(db.queryForObject("SELECT anulada FROM ventas WHERE id=?", Boolean.class, id));
-            assertEquals(0, movimientos(id, "VENTA"));
-            assertEquals(0, movimientos(id, "AJUSTE"));
+            assertEquals(1, movimientos(id, "VENTA"));
+            assertEquals(1, movimientos(id, "AJUSTE"));
             assertEquals(400, post(id, "cancelar", Rol.ADMIN).getStatusCode().value());
             assertEquals(10, stock(producto));
         }
@@ -167,26 +148,6 @@ class PedidoEntregaIntegracionTest {
         Long usuario = db.queryForObject("SELECT id FROM usuarios WHERE email='admin@smartstock.com'", Long.class);
         assertEquals(2, db.queryForObject("SELECT count(*) FROM movimientos_stock WHERE venta_id=? AND tipo='AJUSTE' AND usuario_id=?",
                 Integer.class, id, usuario));
-    }
-
-    @Test void cancelarParcialYAliasDevuelvenSoloEntregadaSinAjustesCero() {
-        db.update("UPDATE productos SET stock_actual=0 WHERE id=?", otro);
-        for (boolean legacy : List.of(false, true)) {
-            long id = confirmado(List.of(item(producto, 12), item(otro, 3)));
-            var antes = pedir(HttpMethod.GET, "/api/pedidos/" + id, null, Rol.ADMIN).getBody();
-            assertEquals(12, linea(antes, producto).get("cantidadSolicitada").asInt());
-            assertEquals(10, linea(antes, producto).get("cantidadEntregada").asInt());
-            assertEquals(0, linea(antes, otro).get("cantidadEntregada").asInt());
-            String destino = legacy ? "/api/ventas/" + id + "/anular" : ruta(id, "cancelar");
-            var respuesta = pedir(HttpMethod.POST, destino, null, Rol.ADMIN);
-            assertEquals(200, respuesta.getStatusCode().value());
-            assertEquals(10, stock(producto));
-            assertEquals(0, stock(otro));
-            assertEquals(1, movimientos(id, "AJUSTE"));
-            assertEquals(10, db.queryForObject(
-                    "SELECT sum(cantidad) FROM movimientos_stock WHERE venta_id=? AND tipo='AJUSTE'", Integer.class, id));
-            assertEquals("CANCELADO", db.queryForObject("SELECT estado FROM ventas WHERE id=?", String.class, id));
-        }
     }
 
     @Test void cancelacionConcurrenteConAliasDevuelveUnaSolaVez() throws Exception {
@@ -268,7 +229,7 @@ class PedidoEntregaIntegracionTest {
             assertEquals(400, pedir(HttpMethod.PUT, ruta(id, "fecha-envio"), datos, Rol.VENDEDOR).getStatusCode().value());
         }
         assertEquals(200, pedir(HttpMethod.PUT, ruta(id, "fecha-envio"), Map.of("fechaEnvio", hoy().toString()), Rol.ADMIN).getStatusCode().value());
-        assertEquals(10, stock(producto));
+        assertEquals(9, stock(producto));
         assertEquals(200, post(id, "confirmar", Rol.VENDEDOR).getStatusCode().value());
         assertEquals(200, pedir(HttpMethod.PUT, ruta(id, "fecha-envio"), Map.of("fechaEnvio", hoy().plusDays(1).toString()), Rol.VENDEDOR).getStatusCode().value());
         assertEquals(200, post(id, "enviar", Rol.VENDEDOR).getStatusCode().value());
@@ -288,7 +249,7 @@ class PedidoEntregaIntegracionTest {
         assertEquals(401, pedir(HttpMethod.PUT, ruta(id, "fecha-envio"), Map.of("fechaEnvio", hoy().toString()), null).getStatusCode().value());
         assertEquals(404, pedir(HttpMethod.PUT, ruta(Long.MAX_VALUE, "fecha-envio"), Map.of("fechaEnvio", hoy().toString()), Rol.ADMIN).getStatusCode().value());
         assertEquals("PENDIENTE", db.queryForObject("SELECT estado FROM ventas WHERE id=?", String.class, id));
-        assertEquals(10, stock(producto));
+        assertEquals(9, stock(producto));
     }
 
     long crear(Map<String, Object> datos) {
@@ -305,12 +266,6 @@ class PedidoEntregaIntegracionTest {
         long id = confirmado(List.of(item(producto, 1)));
         assertEquals(200, post(id, "enviar", Rol.VENDEDOR).getStatusCode().value());
         return id;
-    }
-    JsonNode linea(JsonNode pedido, long productoId) {
-        for (var item : pedido.get("items")) {
-            if (item.get("productoId").asLong() == productoId) return item;
-        }
-        throw new AssertionError("Falta la línea del producto " + productoId);
     }
     String ruta(long id, String accion) { return "/api/pedidos/" + id + "/" + accion; }
     LocalDate hoy() { return LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")); }
