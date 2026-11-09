@@ -22,4 +22,5 @@ PARAMETROS_POR_DEFECTO = {
     "umbral_criticidad_media": 15,
     "margen_dias_proveedor_bajo": 3,
     "clasificacion_proveedor_baja": 2,
+    "fill_rate_objetivo": 95,
 }

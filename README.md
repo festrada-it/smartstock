@@ -131,6 +131,7 @@ Las filas marcadas con 🔜 están **planificadas** (ver [docs/plan-mejoras.md](
 | 🔜 `/rotacion` · `/rotacion/grupos` | Rotación de 30 días contra el umbral del grupo, con sugerencia (6.1) |
 | `/predicciones` (amplía) | Punto de reposición según el lead time del proveedor y su margen, fecha de reposición y "comprar ahora" ([contrato](docs/REPOSICION.md), 7.1) |
 | 🔜 `/alertas/panel` | Alertas unificadas: quiebre, reposición, stock mínimo, vencimiento y baja rotación (8.1) |
+| `/dashboard/fill-rate` | Fill Rate total y por cadena, período anterior y ventas perdidas en $ ([contrato](docs/FILL-RATE.md), D.8) |
 
 ## Desarrollo sin Docker (opcional)
 
