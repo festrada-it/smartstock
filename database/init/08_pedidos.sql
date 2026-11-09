@@ -3,18 +3,21 @@ BEGIN;
 CREATE SEQUENCE IF NOT EXISTS numero_orden_seq;
 CREATE SEQUENCE IF NOT EXISTS numero_factura_seq;
 
-ALTER TABLE detalle_venta ADD COLUMN IF NOT EXISTS cantidad_solicitada INTEGER;
-UPDATE detalle_venta SET cantidad_solicitada=cantidad WHERE cantidad_solicitada IS NULL;
-ALTER TABLE detalle_venta ALTER COLUMN cantidad_solicitada SET NOT NULL;
-ALTER TABLE detalle_venta DROP CONSTRAINT IF EXISTS detalle_venta_cantidad_check;
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='detalle_venta'::regclass AND conname='ck_detalle_entrega') THEN
-        ALTER TABLE detalle_venta ADD CONSTRAINT ck_detalle_entrega CHECK (
-            cantidad_solicitada > 0 AND cantidad >= 0 AND cantidad <= cantidad_solicitada
-        );
-    END IF;
-END $$;
+-- Una fila por línea rechazada por falta de stock. Faltante = pedida - disponible.
+CREATE TABLE IF NOT EXISTS ventas_perdidas (
+    id                  BIGSERIAL PRIMARY KEY,
+    fecha               TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Buenos_Aires'),
+    cliente_id          BIGINT NOT NULL REFERENCES clientes(id),
+    usuario_id          BIGINT NOT NULL REFERENCES usuarios(id),
+    producto_id         BIGINT NOT NULL REFERENCES productos(id),
+    cantidad_pedida     INTEGER NOT NULL,
+    cantidad_disponible INTEGER NOT NULL,
+    precio_unitario     NUMERIC(12,2) NOT NULL CHECK (precio_unitario >= 0),
+    CONSTRAINT ck_venta_perdida_faltante CHECK (cantidad_disponible >= 0 AND cantidad_pedida > cantidad_disponible)
+);
+CREATE INDEX IF NOT EXISTS idx_ventas_perdidas_fecha ON ventas_perdidas(fecha);
+CREATE INDEX IF NOT EXISTS idx_ventas_perdidas_cliente ON ventas_perdidas(cliente_id,fecha);
+CREATE INDEX IF NOT EXISTS idx_ventas_perdidas_producto ON ventas_perdidas(producto_id,fecha);
 
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS numero_orden VARCHAR(40);
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS forma_pago VARCHAR(20) DEFAULT 'EFECTIVO';
@@ -29,9 +32,6 @@ ALTER TABLE ventas ADD COLUMN IF NOT EXISTS numero_factura VARCHAR(40);
 UPDATE ventas SET estado = CASE WHEN anulada THEN 'CANCELADO' ELSE 'ENTREGADO' END
 WHERE estado IS NULL;
 UPDATE ventas SET subtotal = total WHERE subtotal IS NULL;
--- Actualiza también pedidos creados con la versión previa de08: aún no entregaron mercadería.
-UPDATE detalle_venta d SET cantidad=0 FROM ventas v WHERE d.venta_id=v.id AND v.estado='PENDIENTE';
-UPDATE ventas SET subtotal=0,total=0 WHERE estado='PENDIENTE';
 
 DO $$
 DECLARE

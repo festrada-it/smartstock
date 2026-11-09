@@ -50,10 +50,6 @@ BEGIN
         ASSERT NOT EXISTS (SELECT 1 FROM ventas v JOIN detalle_venta d ON d.venta_id=v.id JOIN productos p ON p.id=d.producto_id
             WHERE p.sku LIKE 'DEMO-INV-%' AND (v.estado<>'ENTREGADO' OR v.estado_entrega<>'ENTREGADA' OR v.subtotal<>v.total OR v.numero_factura IS NULL)), 'Pedido demo incoherente';
     END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='detalle_venta' AND column_name='cantidad_solicitada') THEN
-        ASSERT NOT EXISTS (SELECT 1 FROM detalle_venta d JOIN productos p ON p.id=d.producto_id
-            WHERE p.sku LIKE 'DEMO-INV-%' AND d.cantidad_solicitada<>d.cantidad), 'Solicitada demo debe coincidir con entregada';
-    END IF;
     ASSERT NOT EXISTS (
         SELECT 1 FROM productos p LEFT JOIN movimientos_stock m ON m.producto_id=p.id
         WHERE p.sku LIKE 'DEMO-INV-%' GROUP BY p.id,p.stock_actual HAVING COALESCE(SUM(m.cantidad),0)<>p.stock_actual

@@ -5,11 +5,14 @@ DECLARE
     filas INTEGER;
 BEGIN
     SELECT count(*) INTO filas FROM (
-        SELECT c.nombre,100.0*sum(d.cantidad)/sum(d.cantidad_solicitada) tasa
-        FROM ventas v JOIN detalle_venta d ON d.venta_id=v.id JOIN clientes c ON c.id=v.cliente_id
-        WHERE c.nombre IN ('Cadena demo Verde','Cadena demo Amarilla','Cadena demo Roja') AND v.estado='ENTREGADO'
-        GROUP BY c.nombre
-        HAVING 100.0*sum(d.cantidad)/sum(d.cantidad_solicitada)=CASE c.nombre
+        SELECT c.nombre
+        FROM clientes c
+        JOIN (SELECT v.cliente_id,sum(d.cantidad) vendidas FROM ventas v JOIN detalle_venta d ON d.venta_id=v.id
+              WHERE v.estado='ENTREGADO' GROUP BY v.cliente_id) ve ON ve.cliente_id=c.id
+        JOIN (SELECT cliente_id,sum(cantidad_pedida-cantidad_disponible) perdidas FROM ventas_perdidas
+              GROUP BY cliente_id) vp ON vp.cliente_id=c.id
+        WHERE c.nombre IN ('Cadena demo Verde','Cadena demo Amarilla','Cadena demo Roja')
+          AND 100.0*ve.vendidas/(ve.vendidas+vp.perdidas)=CASE c.nombre
             WHEN 'Cadena demo Verde' THEN 99 WHEN 'Cadena demo Amarilla' THEN 96 ELSE 90 END
     ) tasas;
     IF filas<>3 THEN RAISE EXCEPTION 'Las tres tasas demo no son99/96/90'; END IF;
@@ -19,9 +22,12 @@ BEGIN
     END IF;
 END $$;
 CREATE TEMP TABLE demo_antes AS
-    SELECT v.id,v.numero_orden,v.numero_factura,v.fecha,v.total,d.cantidad,d.cantidad_solicitada
+    SELECT v.id,v.numero_orden,v.numero_factura,v.fecha,v.total,d.cantidad
     FROM ventas v JOIN detalle_venta d ON d.venta_id=v.id JOIN productos p ON p.id=d.producto_id
     WHERE p.sku LIKE 'DEMO-FR-%';
+CREATE TEMP TABLE perdidas_antes AS
+    SELECT vp.id,vp.fecha,vp.cantidad_pedida,vp.cantidad_disponible,vp.precio_unitario
+    FROM ventas_perdidas vp JOIN productos p ON p.id=vp.producto_id WHERE p.sku LIKE 'DEMO-FR-%';
 CREATE TEMP TABLE secuencias_demo_antes AS SELECT
     (SELECT last_value FROM numero_orden_seq) orden,(SELECT last_value FROM numero_factura_seq) factura;
 \ir ../init/11_datos_fill_rate.sql
@@ -32,8 +38,12 @@ BEGIN
         JOIN productos p ON p.id=d.producto_id WHERE p.sku LIKE 'DEMO-FR-%')<>3 THEN
         RAISE EXCEPTION 'Faltan o se duplicaron pedidos demo';
     END IF;
+    IF (SELECT count(*) FROM perdidas_antes)<>3 OR
+       (SELECT count(*) FROM ventas_perdidas vp JOIN productos p ON p.id=vp.producto_id WHERE p.sku LIKE 'DEMO-FR-%')<>3 THEN
+        RAISE EXCEPTION 'Faltan o se duplicaron ventas perdidas demo';
+    END IF;
     IF EXISTS (SELECT * FROM demo_antes EXCEPT
-               SELECT v.id,v.numero_orden,v.numero_factura,v.fecha,v.total,d.cantidad,d.cantidad_solicitada
+               SELECT v.id,v.numero_orden,v.numero_factura,v.fecha,v.total,d.cantidad
                FROM ventas v JOIN detalle_venta d ON d.venta_id=v.id JOIN productos p ON p.id=d.producto_id
                WHERE p.sku LIKE 'DEMO-FR-%') THEN
         RAISE EXCEPTION 'La segunda ejecución altera la historia demo';

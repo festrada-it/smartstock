@@ -5,7 +5,7 @@ INSERT INTO parametros(clave,valor,descripcion) VALUES
  ('dsi_amarillo_alto','45','Días de inventario desde los cuales hay dinero atrapado, nivel amarillo'),
  ('dsi_rojo_alto','90','Días de inventario desde los cuales hay dinero atrapado, nivel rojo'),
  ('dias_sin_ventas','90','Ventana en días para detectar productos con stock y sin ventas'),
- ('fill_rate_objetivo','95','Objetivo porcentual de unidades entregadas sobre solicitadas'),
+ ('fill_rate_objetivo','95','Objetivo porcentual de unidades vendidas sobre vendidas más perdidas'),
  ('riesgo_amarillo_pct','5','Porcentaje del valor del stock en riesgo desde el cual se muestra amarillo'),
  ('riesgo_rojo_pct','10','Porcentaje del valor del stock en riesgo por encima del cual se muestra rojo')
 ON CONFLICT(clave) DO NOTHING;
@@ -37,9 +37,6 @@ DECLARE
     tiene_lotes BOOLEAN := to_regclass('lotes') IS NOT NULL;
     tiene_pedidos BOOLEAN := EXISTS (SELECT 1 FROM information_schema.columns
         WHERE table_schema=current_schema() AND table_name='ventas' AND column_name='numero_orden');
-    tiene_solicitada BOOLEAN := EXISTS (
-        SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema()
-        AND table_name='detalle_venta' AND column_name='cantidad_solicitada');
 BEGIN
     SELECT id INTO usuario FROM usuarios
     ORDER BY CASE WHEN email='vendedor@smartstock.com' THEN 0 ELSE 1 END,id LIMIT 1;
@@ -96,14 +93,8 @@ BEGIN
                     INSERT INTO ventas(usuario_id,cliente_id,fecha,total)
                     VALUES(usuario,cliente,dia+TIME '12:00',p.precio*cantidad) RETURNING id INTO nueva_venta;
                 END IF;
-                -- 08 puede imponer NOT NULL sin DEFAULT: no se lo presupone para correr sobre 01..06.
-                IF tiene_solicitada THEN
-                    INSERT INTO detalle_venta(venta_id,producto_id,cantidad,precio_unitario,cantidad_solicitada)
-                    VALUES(nueva_venta,p.id,cantidad,p.precio,cantidad) RETURNING id INTO detalle;
-                ELSE
-                    INSERT INTO detalle_venta(venta_id,producto_id,cantidad,precio_unitario)
-                    VALUES(nueva_venta,p.id,cantidad,p.precio) RETURNING id INTO detalle;
-                END IF;
+                INSERT INTO detalle_venta(venta_id,producto_id,cantidad,precio_unitario)
+                VALUES(nueva_venta,p.id,cantidad,p.precio) RETURNING id INTO detalle;
                 IF tiene_lotes THEN
                     INSERT INTO consumos_lote(detalle_venta_id,lote_id,cantidad) VALUES(detalle,lote,cantidad);
                 END IF;

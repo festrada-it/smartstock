@@ -23,7 +23,7 @@ BEGIN
         ('DEMO-FR-VERDE','Cadena demo Verde',990,'BUENA',5),
         ('DEMO-FR-AMARILLO','Cadena demo Amarilla',960,'REGULAR',3),
         ('DEMO-FR-ROJO','Cadena demo Roja',900,'MALA',1)
-    ) AS e(sku,nombre_cliente,entregada,calidad,clasificacion) LOOP
+    ) AS e(sku,nombre_cliente,vendida,calidad,clasificacion) LOOP
         INSERT INTO clientes(nombre,calidad,clasificacion)
             SELECT escenario.nombre_cliente,escenario.calidad,escenario.clasificacion
             WHERE NOT EXISTS (SELECT 1 FROM clientes WHERE nombre=escenario.nombre_cliente);
@@ -39,18 +39,21 @@ BEGIN
             factura := nextval('numero_factura_seq');
             INSERT INTO ventas(usuario_id,cliente_id,fecha,subtotal,total,forma_pago,descuento_pct,
                                numero_orden,numero_factura,estado,fecha_envio)
-            VALUES (usuario,cliente,fecha_pedido,escenario.entregada,escenario.entregada,'EFECTIVO',0,
+            VALUES (usuario,cliente,fecha_pedido,escenario.vendida,escenario.vendida,'EFECTIVO',0,
                     'OC-' || to_char(fecha_pedido,'YYYY') || '-' || lpad(orden::TEXT,greatest(6,length(orden::TEXT)),'0'),
                     'FAC-0001-' || lpad(factura::TEXT,greatest(8,length(factura::TEXT)),'0'),'ENTREGADO',fecha_pedido::DATE)
             RETURNING id INTO venta;
-            INSERT INTO detalle_venta(venta_id,producto_id,cantidad_solicitada,cantidad,precio_unitario)
-                VALUES (venta,producto,1000,escenario.entregada,1.00);
+            INSERT INTO detalle_venta(venta_id,producto_id,cantidad,precio_unitario)
+                VALUES (venta,producto,escenario.vendida,1.00);
+            -- Sobre 1000 unidades pedidas, el resto se perdió: Fill Rate = vendidas / (vendidas + perdidas).
+            INSERT INTO ventas_perdidas(fecha,cliente_id,usuario_id,producto_id,cantidad_pedida,cantidad_disponible,precio_unitario)
+                VALUES (fecha_pedido,cliente,usuario,producto,1000-escenario.vendida,0,1.00);
             -- Ingreso histórico y salida total: stock actual0, también sin lotes si07 ya corrió.
             INSERT INTO movimientos_stock(producto_id,tipo,cantidad,fecha,usuario_id,observacion)
-                VALUES (producto,'COMPRA',escenario.entregada,fecha_pedido-INTERVAL '1 day',usuario,
+                VALUES (producto,'COMPRA',escenario.vendida,fecha_pedido-INTERVAL '1 day',usuario,
                         'Demo Fill Rate ' || escenario.sku);
             INSERT INTO movimientos_stock(producto_id,tipo,cantidad,fecha,usuario_id,venta_id,observacion)
-                VALUES (producto,'VENTA',-escenario.entregada,fecha_pedido,usuario,venta,
+                VALUES (producto,'VENTA',-escenario.vendida,fecha_pedido,usuario,venta,
                         'Demo Fill Rate ' || escenario.sku);
         END IF;
     END LOOP;
