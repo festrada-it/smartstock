@@ -56,7 +56,7 @@ Cuerpo opcional:
 Retira el **lote completo**: deja `cantidadDisponible` en 0, descuenta esa
 cantidad de `stock_actual` y registra un movimiento `AJUSTE` negativo con
 `loteId`, el usuario del JWT y la observación `Retiro de lote vencido`, seguida
-de la del cuerpo si viene (hasta 255 caracteres en total). Conserva
+de la del cuerpo si viene (hasta 230 caracteres). Conserva
 `SUM(lotes.cantidad_disponible)=stock_actual`. Funciona aunque el producto esté
 dado de baja.
 
@@ -69,7 +69,7 @@ Resultado 200:
 - Solo se retira un lote vencido (`fechaVencimiento` anterior a hoy en
   America/Argentina/Buenos_Aires); un lote que vence hoy o sin vencimiento: 400.
 - Un lote sin unidades disponibles, incluso por un retiro concurrente: 400.
-- Lote inexistente: 404. Sin JWT: 401. Observación de más de 255 caracteres: 400.
+- Lote inexistente: 404. Sin JWT: 401. Observación de más de 230 caracteres: 400.
 
 Bloquea primero el producto y después el lote, en el mismo orden que ventas y
 compras. Los lotes a retirar los lista el endpoint de vencimientos de analytics (#22).
