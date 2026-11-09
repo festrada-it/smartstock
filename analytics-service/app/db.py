@@ -11,19 +11,26 @@ engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
 # Solo los pedidos que salieron del depósito son demanda e ingreso: ni los PENDIENTES ni los CANCELADOS.
 ESTADOS_QUE_VENDEN = ["CONFIRMADO", "ENVIADO", "ENTREGADO"]
 
-_COLUMNAS_PRODUCTO = "id, sku, nombre, stock_actual, stock_minimo, costo, precio"
+_SELECT_PRODUCTO = """
+    SELECT p.id, p.sku, p.nombre, p.stock_actual, p.stock_minimo, p.costo, p.precio,
+           pr.id AS proveedor_id, pr.nombre AS proveedor,
+           pr.lead_time_dias AS proveedor_lead_time_dias,
+           pr.clasificacion AS proveedor_clasificacion, pr.calidad AS proveedor_calidad
+    FROM productos p
+    LEFT JOIN proveedores pr ON pr.id = p.proveedor_id AND pr.activo
+"""
 
 
 def obtener_productos() -> list[dict]:
     with engine.connect() as conn:
-        filas = conn.execute(text(f"SELECT {_COLUMNAS_PRODUCTO} FROM productos WHERE activo ORDER BY id"))
+        filas = conn.execute(text(f"{_SELECT_PRODUCTO} WHERE p.activo ORDER BY p.id"))
         return [_producto(fila) for fila in filas]
 
 
 def obtener_producto(producto_id: int) -> dict | None:
     with engine.connect() as conn:
         fila = conn.execute(
-            text(f"SELECT {_COLUMNAS_PRODUCTO} FROM productos WHERE id = :id AND activo"), {"id": producto_id}
+            text(f"{_SELECT_PRODUCTO} WHERE p.id = :id AND p.activo"), {"id": producto_id}
         ).first()
         return _producto(fila) if fila else None
 
