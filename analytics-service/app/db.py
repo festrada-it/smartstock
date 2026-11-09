@@ -111,6 +111,26 @@ def resumen_ventas(dias: int) -> dict:
     return {"unidades": int(unidades), "ingresos": float(ingresos)}
 
 
+def lotes_con_vencimiento() -> list[dict]:
+    """Lotes con disponible y fecha de vencimiento, con la ventana de alerta de su grupo (60 días sin grupo).
+    Ya descarta los que vencen más allá de la ventana; la criticidad la decide app.vencimientos."""
+    with engine.connect() as conn:
+        filas = conn.execute(text("""
+            SELECT * FROM (
+                SELECT l.id AS lote_id, l.producto_id, p.sku, p.nombre AS producto, p.marca,
+                       c.nombre AS grupo, l.cantidad_disponible, l.fecha_vencimiento, l.costo_unitario,
+                       COALESCE(c.dias_alerta_vencimiento, :dias_por_defecto) AS dias_alerta_vencimiento
+                FROM lotes l
+                JOIN productos p ON p.id = l.producto_id
+                LEFT JOIN categorias c ON c.id = p.categoria_id
+                WHERE l.cantidad_disponible > 0 AND l.fecha_vencimiento IS NOT NULL
+            ) lote
+            WHERE fecha_vencimiento - CURRENT_DATE <= dias_alerta_vencimiento
+            ORDER BY lote_id
+        """), {"dias_por_defecto": config.DIAS_ALERTA_VENCIMIENTO_POR_DEFECTO})
+        return [dict(fila._mapping) for fila in filas]
+
+
 def _producto(fila) -> dict:
     datos = dict(fila._mapping)
     datos["costo"] = float(datos["costo"])

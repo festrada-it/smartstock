@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import config, db
 from app.auth import usuario_actual
 from app.prediccion import ALTA, MEDIA, analizar_producto, proyectar_demanda
-from app.schemas import Prediccion, ProyeccionStock, PuntoSerie, Resumen, TendenciaVentas
+from app.schemas import Prediccion, ProyeccionStock, PuntoSerie, Resumen, TendenciaVentas, Vencimiento
+from app.vencimientos import listar_vencimientos
 
 app = FastAPI(title="SmartStock - Analytics Service", version="0.2.0")
 
@@ -80,6 +81,12 @@ def tendencia_ventas(producto_id: int,
         "ventas": _serie(fechas_historico, ventas[-dias_historico:]),
         "pronostico": _serie(_proximos_dias(dias_futuro), demanda if demanda is not None else np.zeros(dias_futuro)),
     }
+
+
+@api.get("/vencimientos", response_model=list[Vencimiento])
+def vencimientos():
+    """Lotes que vencen dentro de la ventana de su grupo (o ya vencidos), de la más crítica a la menos."""
+    return listar_vencimientos(db.lotes_con_vencimiento(), date.today())
 
 
 @api.get("/resumen", response_model=Resumen)

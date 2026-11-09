@@ -42,6 +42,22 @@ class TendenciaVentas(BaseModel):
     pronostico: list[PuntoSerie]
 
 
+class Vencimiento(BaseModel):
+    lote_id: int
+    producto_id: int
+    sku: str
+    producto: str
+    marca: str | None
+    grupo: str | None
+    cantidad_disponible: int
+    fecha_vencimiento: date
+    dias_restantes: int
+    valor_en_riesgo: float
+    criticidad: str
+    accion_sugerida: str
+    dias_alerta_grupo: int
+
+
 class Resumen(BaseModel):
     productos_activos: int
     valor_total_stock: float

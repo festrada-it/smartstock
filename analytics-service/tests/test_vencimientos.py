@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.vencimientos import analizar_vencimiento
+from app.vencimientos import analizar_vencimiento, listar_vencimientos
 
 HOY = date(2026, 10, 31)
 
@@ -70,3 +70,34 @@ def test_valor_en_riesgo_con_costo_cero():
 def test_datos_invalidos_producen_error_explicito(cantidad, costo, ventana, mensaje):
     with pytest.raises(ValueError, match=mensaje):
         analizar_vencimiento(HOY, cantidad, costo, ventana, HOY)
+
+
+def _lote(lote_id, dias, ventana=60, disponible=10, costo="2.50"):
+    return {"lote_id": lote_id, "producto_id": 1, "sku": "A", "producto": "Producto", "marca": "Marca",
+            "grupo": "Grupo", "cantidad_disponible": disponible,
+            "fecha_vencimiento": None if dias is None else HOY + timedelta(days=dias),
+            "costo_unitario": Decimal(costo), "dias_alerta_vencimiento": ventana}
+
+
+def test_listar_ordena_por_criticidad_y_luego_por_dias_restantes():
+    lotes = [_lote(1, 50), _lote(2, 20), _lote(3, -5), _lote(4, 3), _lote(5, 20)]
+
+    resultado = listar_vencimientos(lotes, HOY)
+
+    assert [(a["lote_id"], a["criticidad"]) for a in resultado] == [
+        (3, "ALTA"), (4, "ALTA"), (2, "MEDIA"), (5, "MEDIA"), (1, "BAJA")]
+
+
+def test_listar_descarta_lotes_sin_alerta():
+    lotes = [_lote(1, 61), _lote(2, None), _lote(3, 5, disponible=0), _lote(4, 60)]
+
+    assert [a["lote_id"] for a in listar_vencimientos(lotes, HOY)] == [4]
+
+
+def test_listar_incluye_los_datos_del_lote_y_el_valor_en_riesgo_con_el_costo_del_lote():
+    alerta = listar_vencimientos([_lote(7, 10, ventana=30, disponible=4, costo="12.50")], HOY)[0]
+
+    assert alerta["lote_id"] == 7
+    assert (alerta["sku"], alerta["producto"], alerta["marca"], alerta["grupo"]) == ("A", "Producto", "Marca", "Grupo")
+    assert alerta["valor_en_riesgo"] == Decimal("50.00")
+    assert alerta["dias_alerta_grupo"] == 30
