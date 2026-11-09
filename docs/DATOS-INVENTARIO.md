@@ -10,7 +10,7 @@ El script nuevo `database/init/10_parametros_y_datos_inventario.sql` agrega dato
 | dsi_amarillo_alto | 45 | Días de inventario desde los cuales hay dinero atrapado, nivel amarillo |
 | dsi_rojo_alto | 90 | Días de inventario desde los cuales hay dinero atrapado, nivel rojo |
 | dias_sin_ventas | 90 | Ventana en días para detectar productos con stock y sin ventas |
-| fill_rate_objetivo | 95 | Objetivo porcentual de unidades entregadas sobre solicitadas |
+| fill_rate_objetivo | 95 | Objetivo porcentual de unidades vendidas sobre vendidas más perdidas |
 | riesgo_amarillo_pct | 5 | Porcentaje del valor del stock en riesgo desde el cual se muestra amarillo |
 | riesgo_rojo_pct | 10 | Porcentaje del valor del stock en riesgo por encima del cual se muestra rojo |
 
@@ -30,7 +30,7 @@ Se incluyen dos productos rápidos (ventas diarias), dos lentos (ventas espaciad
 
 ## Compatibilidad e idempotencia
 
-Requiere los scripts `01` a `06`; no requiere pedidos (`08`) ni lotes. Si existe `detalle_venta.cantidad_solicitada`, se registra igual a la entregada porque estas ventas no son parciales. Si existen las columnas de pedidos, las ventas se crean ENTREGADO, con subtotal/total iguales, descuento cero y números únicos obtenidos de las secuencias existentes. Si existe el esquema de lotes (`07`), cada producto nuevo recibe un lote con existencia inicial, consumos históricos y disponible igual al stock actual; sus movimientos referencian ese lote. La fecha de entrega es el comienzo de la historia y el vencimiento queda desconocido. Sin `07`/`08`, no depende de sus tablas o columnas. Ejecutar `10` dos veces no duplica proveedores, grupos, productos, ventas o movimientos y no altera parámetros personalizados. Las escrituras son atómicas.
+Requiere los scripts `01` a `06`; no requiere pedidos (`08`) ni lotes. Si existen las columnas de pedidos, las ventas se crean ENTREGADO, con subtotal/total iguales, descuento cero y números únicos obtenidos de las secuencias existentes. Si existe el esquema de lotes (`07`), cada producto nuevo recibe un lote con existencia inicial, consumos históricos y disponible igual al stock actual; sus movimientos referencian ese lote. La fecha de entrega es el comienzo de la historia y el vencimiento queda desconocido. Sin `07`/`08`, no depende de sus tablas o columnas. Ejecutar `10` dos veces no duplica proveedores, grupos, productos, ventas o movimientos y no altera parámetros personalizados. Las escrituras son atómicas.
 
 La prueba SQL se ejecuta sobre una base PostgreSQL 16 descartable: primero falla sobre `01..06`, luego pasa con `10`; verifica los dos períodos, historia coherente, sin ventas e idempotencia. La integración `01..11` se verifica cuando estén disponibles los scripts de las otras tareas. No hay rutas nuevas para incorporar a `ControllersTest`.
 

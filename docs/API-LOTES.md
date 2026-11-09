@@ -77,25 +77,25 @@ las operaciones de stock bloquean después los lotes por id.
 
 ## Consumo FEFO y devolución (#21)
 
-`POST /api/ventas` y `POST /api/pedidos/{id}/confirmar` mantienen sus rutas,
-roles y JSON. Toda cantidad entregada positiva consume lotes con disponible
-mayor que cero, por `fecha_vencimiento ASC NULLS LAST, id ASC`. Se incluyen
-vencimientos pasados: no existe una política aprobada que los excluya. Los
-renglones entregados con cantidad cero no consumen ni generan movimientos.
-La confirmación informa una advertencia de stock mínimo por producto, aunque
-la entrega tome mercadería de varios lotes.
+`POST /api/ventas` y `POST /api/pedidos` consumen lotes con disponible mayor que
+cero, por `fecha_vencimiento ASC NULLS LAST, id ASC`. **Los lotes vencidos no se
+venden:** su disponible no cuenta como stock vendible hasta que se retiren. Un lote
+que vence hoy todavía se puede vender. Crear un pedido informa una advertencia de
+stock mínimo por producto, aunque tome mercadería de varios lotes.
 
 Primero se bloquean todos los productos por id ascendente; luego sus lotes en
 ese mismo orden de productos y orden FEFO. Cada fracción se guarda en
 `consumos_lote` con detalle de venta, lote y cantidad positiva, y genera un
 movimiento `VENTA` con cantidad negativa y `loteId`. Los detalles se persisten
-antes de sus consumos por la clave foránea; falta de stock o inconsistencia de
-lotes revierte venta, consumos, movimientos y stock en la misma transacción.
+antes de sus consumos por la clave foránea. La falta de stock se valida antes de
+escribir: no se crea nada y se registra la venta perdida (`docs/API-PEDIDOS.md`).
+Una inconsistencia de lotes revierte toda la operación con 400.
 
-La anulación de ventas y cancelación de pedidos confirmados/parciales devuelve
+La anulación de ventas y cancelación de pedidos PENDIENTE o CONFIRMADO devuelve
 cada fracción al lote original y genera `AJUSTE` positivo con `loteId`. Se
 conservan los consumos para auditoría. El bloqueo de venta impide una segunda
-devolución. Pedidos pendientes no restituyen stock. Los detalles históricos
+devolución. Si el lote de origen venció mientras tanto, lo devuelto no se puede
+volver a vender. Los detalles históricos
 sin consumos (ventas anteriores a 07 o al despliegue FEFO) devuelven su cantidad
 al lote de apertura: no se puede reconstruir su origen. La apertura admite
 disponible mayor al inicial por esas restituciones.
@@ -105,9 +105,8 @@ compras y catálogo conservan `SUM(lotes.cantidad_disponible)=stock_actual`.
 No hay rutas nuevas ni cambios de campos JSON; `loteId` ya forma parte del
 historial paginado de movimientos.
 
-Dependencias de integración: PR #52 (pedidos y confirmación parcial), #54
-(lotes/compras) y #65 (cancelación de pedidos). El contrato de pedidos define
-`cantidadSolicitada` y `cantidad` entregada; FEFO descuenta esta última.
+Dependencias de integración: pedidos con reserva al crear (#24), lotes/compras
+(#20) y cancelación de pedidos (#25).
 
 En una base existente aplicar 07, sin borrar volúmenes. Si 08 de pedidos ya
 está aplicado, no se vuelve a ejecutar para instalar lotes. En bases nuevas los

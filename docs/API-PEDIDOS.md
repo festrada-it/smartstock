@@ -8,10 +8,10 @@ requiere ADMIN. Sin token: 401; rol no autorizado:
 
 | Método | Ruta | Resultado |
 |---|---|---|
-| POST | `/api/pedidos` | 201, pedido PENDIENTE sin modificar stock |
+| POST | `/api/pedidos` | 201, pedido PENDIENTE con el stock reservado; 400 y venta perdida si falta stock |
 | GET | `/api/pedidos?estado=&clienteId=&desde=&hasta=&numeroOrden=&page=0&size=50` | 200, página de pedidos |
 | GET | `/api/pedidos/{id}` | 200, cabecera y detalle completos |
-| POST | `/api/pedidos/{id}/confirmar` | 200, pedido CONFIRMADO completo/parcial y advertencias |
+| POST | `/api/pedidos/{id}/confirmar` | 200, pedido CONFIRMADO; no mueve stock |
 | POST | `/api/pedidos/{id}/enviar` | 200, pedido ENVIADO |
 | POST | `/api/pedidos/{id}/entregar` | 200, pedido ENTREGADO con factura |
 | POST | `/api/pedidos/{id}/cancelar` | 200, pedido CANCELADO; solo ADMIN |
@@ -35,18 +35,18 @@ Fechas nuevas: America/Argentina/Buenos_Aires; fechas históricas se conservan.
   "id":123,"numeroOrden":"OC-2026-000123","fecha":"2026-10-31T15:30:00",
   "clienteId":1,"cliente":"Día Express","clienteCalidad":"BUENA",
   "clienteClasificacion":5,"formaPago":"TRANSFERENCIA","descuentoPct":10,
-  "conDescuento":true,"subtotal":0.00,"importeDescuento":0.00,"total":0.00,
+  "conDescuento":true,"subtotal":200.00,"importeDescuento":20.00,"total":180.00,
   "fechaEnvio":"2026-11-04","estado":"PENDIENTE","estadoEntrega":"PACTADA",
   "numeroFactura":null,
-  "items":[{"productoId":1,"producto":"Arroz","marca":"Ejemplo","cantidad":0,"cantidadSolicitada":2,"cantidadEntregada":0,"faltante":2,"precioUnitario":100.00,"subtotal":0.00}],
+  "items":[{"productoId":1,"producto":"Arroz","marca":"Ejemplo","cantidad":2,"precioUnitario":100.00,"subtotal":200.00}],
   "advertencias":[]
 }
 ```
 
 POST, GET individual y confirmar devuelven esta cabecera y detalle. `fecha` usa
 ISO local `yyyy-MM-ddTHH:mm:ss[.fracción]`, sin offset. `advertencias` siempre se
-incluye: lista vacía fuera de confirmar o si no hay avisos. Confirmar informa el
-faltante por línea y los productos cuyo stock final sea menor o igual al mínimo. El precio de catálogo se guarda
+incluye: lista vacía fuera de crear o si no hay avisos. Crear informa los productos
+cuyo stock final sea menor o igual al mínimo. El precio de catálogo se guarda
 al crear y no cambia al confirmar aunque cambie el catálogo. Nombre y marca son
 los actuales. Moneda con dos decimales: total = subtotal × (1 − descuento / 100),
 redondeado HALF_UP; importeDescuento = subtotal − total para conservar la
@@ -59,18 +59,36 @@ precios, totales ni números como entrada editable. Factura null hasta entrega;
 formato histórico `FAC-0001-NNNNNNNN`. Orden `OC-AAAA-NNNNNN`; secuencias de
 PostgreSQL, ancho mínimo (puede crecer). Los huecos de secuencia son normales.
 
-Confirmar bloquea el pedido y luego los productos ordenados por id. Cada línea
-entrega `min(cantidadSolicitada, stock disponible)` y descuenta solo esa cantidad.
-`cantidad` se conserva como alias de `cantidadEntregada`. Al crear se guarda lo
-solicitado, con cantidadEntregada=0 y subtotal/total=0. Al confirmar se recalculan
-subtotal, descuento y total sobre lo entregado, usando precios pactados. El
-faltante = cantidadSolicitada − cantidadEntregada queda registrado sin backorder.
-Una confirmación parcial cambia a CONFIRMADO igual que una completa. Líneas sin
-entrega no generan movimientos. Si ninguna línea puede entregar, devuelve400 y
-mantiene PENDIENTE sin cambios. Un error en otra línea revierte toda la operación. Confirmar nuevamente, incluso concurrentemente, devuelve 400 y descuenta
-una sola vez. La integración #21 consume lotes FEFO y requiere SQL07;
-el contrato de consumo y restitución está en `docs/API-LOTES.md`.
-Recurso ausente: 404; entradas o transiciones inválidas: 400.
+### Reserva y stock insuficiente (regla del 01-11-2026)
+
+Crear bloquea los productos ordenados por id y valida **todas** las líneas antes
+de escribir. Solo cuenta como disponible el stock de lotes **no vencidos**; un lote
+que vence hoy todavía se puede vender. Con stock suficiente, el pedido queda
+PENDIENTE, descuenta el stock con FEFO y registra un movimiento `VENTA` por lote
+consumido. Ver `docs/API-LOTES.md`.
+
+Si alguna línea no alcanza, responde 400, **no crea el pedido ni consume
+numeración** y guarda una venta perdida por cada línea sin stock suficiente:
+
+```json
+{"error":"No hay stock suficiente","faltantes":[{"productoId":1,"producto":"Helado 1L","cantidadPedida":80,"disponible":10,"faltante":70}]}
+```
+
+Confirmar significa que el cliente aceptó la orden: bloquea el pedido, pasa a
+CONFIRMADO y no mueve stock. Confirmar nuevamente, incluso concurrentemente,
+devuelve 400. Recurso ausente: 404; entradas o transiciones inválidas: 400.
+
+### Ventas perdidas
+
+`POST /api/pedidos` y `POST /api/ventas` registran en `ventas_perdidas`: `fecha`,
+`cliente_id`, `usuario_id`, `producto_id`, `cantidad_pedida`, `cantidad_disponible`
+y `precio_unitario` (el del catálogo al rechazar). El registro persiste aunque se
+rechace la operación. No hay rutas nuevas: analytics lee la tabla directamente.
+
+- **Faltante** = `cantidad_pedida − cantidad_disponible`.
+- **Ventas perdidas en $** = faltante × `precio_unitario`.
+- **Fill Rate** = vendidas / (vendidas + perdidas). Vendidas son las líneas de
+  pedidos CONFIRMADO, ENVIADO y ENTREGADO; perdidas, el faltante por fecha del rechazo.
 
 ## Listado
 
@@ -87,28 +105,28 @@ sin paginar una colección en memoria.
 `POST /api/ventas` conserva request y response existentes y crea directamente un
 pedido CONFIRMADO, con descuento cero y EFECTIVO. Si no llega clienteId, usa el
 cliente activo Consumidor final (se recupera o recrea si dejó de estar disponible).
-Las respuestas legacy conservan detalle y datos del cliente; las ventas legacy
-mantienen su validación de stock completo, con solicitada=entregada. Desde #25, la anulación legacy delega en la misma cancelación: acepta PENDIENTE
-(sin devolver stock) y CONFIRMADO, y rechaza ENVIADO/ENTREGADO/CANCELADO. Conserva
-su DTO VentaResponse y requiere ADMIN; se quitará cuando migre el frontend.
+Las respuestas legacy conservan detalle y datos del cliente; sigue la misma regla
+de stock: rechaza con `faltantes` y registra la venta perdida, usando el mismo
+cliente que usaría la venta. Desde #25, la anulación legacy delega en la misma
+cancelación: acepta PENDIENTE y CONFIRMADO, devuelve el stock y rechaza
+ENVIADO/ENTREGADO/CANCELADO. Conserva su DTO VentaResponse y requiere ADMIN; se
+quitará cuando migre el frontend.
 
 `08_pedidos.sql` se aplica después de 01..06, independientemente de 07. Es
 idempotente: ventas históricas no anuladas → ENTREGADO con factura única;
 anuladas → CANCELADO; conserva fechas y numeración al reejecutar. `anulada`
-permanece sincronizada con CANCELADO por compatibilidad. Agrega
-`detalle_venta.cantidad_solicitada` (>0), migra historia con solicitada=entregada
-y reemplaza el CHECK de cantidad por >=0 sin editar01. Los PENDIENTES anteriores
-conservan la solicitada y pasan a entregada0/importe0. Reruns preservan solicitudes
-y entregas ya confirmadas. Las ventas históricas ENTREGADAS no pueden anularse
-con el alias legacy; devuelve400 por la transición.
+permanece sincronizada con CANCELADO por compatibilidad. Crea la tabla
+`ventas_perdidas`. Las ventas históricas ENTREGADAS no pueden anularse con el
+alias legacy; devuelve 400 por la transición.
 
-`11_datos_fill_rate.sql` agrega tres escenarios demo por cliente, con tasas99%,
-96% y90%, sin asumir IDs ni modificar historia ajena. Es idempotente y corre
-después de08 (y del10 si está presente); identifica sus clientes/productos por
-nombre/SKU y conserva numeración al reejecutar.
+`11_datos_fill_rate.sql` agrega tres escenarios demo por cliente, con ventas y
+ventas perdidas que dan tasas de 99%, 96% y 90%, sin asumir IDs ni modificar
+historia ajena. Es idempotente y corre después de 08 (y del 10 si está presente);
+identifica sus clientes/productos por nombre/SKU y conserva numeración al reejecutar.
 
-Analytics (#26) debe filtrar estados: un pedido PENDIENTE no representa demanda.
-Se conserva `anulada`, pero por sí sola ya no distingue reservas de pedidos.
+Analytics (#26) debe filtrar estados: un pedido PENDIENTE ya tiene cantidad e
+importes, pero no es una venta aceptada por el cliente. Se conserva `anulada`,
+pero por sí sola ya no distingue reservas de ventas.
 
 ## Seguimiento y entrega (#25)
 
@@ -125,13 +143,11 @@ el frontend.
   de la secuencia PostgreSQL ya creada por SQL08: `FAC-0001-NNNNNNNN` (ancho mínimo8).
   Número único incluso entre pedidos concurrentes. Repetir o competir por entregar
   el mismo pedido da una respuesta200 y otra400, conserva su factura y no consume
-  una segunda factura. La factura conserva líneas e importes sobre lo entregado,
-  también si la confirmación fue parcial. Los huecos de secuencia por rollback son normales.
-- **Cancelar**: solo ADMIN, desde PENDIENTE o CONFIRMADO. PENDIENTE cancela sin
-  stock ni movimientos. CONFIRMADO devuelve solo cantidades entregadas (cantidad,
-  sin devolver solicitadas ni faltantes) a los lotes de origen, incluso con
-  productos dados de baja. Registra AJUSTE por fracción de lote con entrega>0
-  y observación exacta
+  una segunda factura. La factura conserva las líneas e importes del pedido.
+  Los huecos de secuencia por rollback son normales.
+- **Cancelar**: solo ADMIN, desde PENDIENTE o CONFIRMADO. Devuelve el stock reservado
+  a los lotes de origen, incluso con productos dados de baja. Registra AJUSTE por
+  fracción de lote y observación exacta
   `Cancelación de pedido OC-...`, con el usuario del JWT. Cambia a CANCELADO y
   anulada=true; conserva precios, importes, detalle y fecha. ENVIADO, ENTREGADO y
   CANCELADO dan400. Cancelaciones concurrentes/alias legacy devuelven una sola vez.
