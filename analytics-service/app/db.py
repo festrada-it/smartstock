@@ -8,6 +8,9 @@ from app import config
 
 engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
 
+# Solo los pedidos que salieron del depósito son demanda e ingreso: ni los PENDIENTES ni los CANCELADOS.
+ESTADOS_QUE_VENDEN = ["CONFIRMADO", "ENVIADO", "ENTREGADO"]
+
 _COLUMNAS_PRODUCTO = "id, sku, nombre, stock_actual, stock_minimo, costo, precio"
 
 
@@ -37,7 +40,7 @@ def ventas_diarias(dias: int, producto_id: int | None = None) -> pd.DataFrame:
     Los días sin ventas valen 0. No incluye el día de hoy porque todavía está en curso."""
     hoy = date.today()
     desde = hoy - timedelta(days=dias)
-    params = {"desde": desde, "hoy": hoy}
+    params = {"desde": desde, "hoy": hoy, "estados": ESTADOS_QUE_VENDEN}
     filtro = ""
     if producto_id is not None:
         filtro = "AND d.producto_id = :producto_id"
@@ -46,7 +49,7 @@ def ventas_diarias(dias: int, producto_id: int | None = None) -> pd.DataFrame:
         SELECT DATE(v.fecha) AS dia, d.producto_id, SUM(d.cantidad) AS unidades
         FROM detalle_venta d
         JOIN ventas v ON v.id = d.venta_id
-        WHERE v.fecha >= :desde AND v.fecha < :hoy AND NOT v.anulada {filtro}
+        WHERE v.fecha >= :desde AND v.fecha < :hoy AND v.estado = ANY(:estados) {filtro}
         GROUP BY DATE(v.fecha), d.producto_id
     """)
     with engine.connect() as conn:
@@ -82,17 +85,23 @@ def stock_historico(producto_id: int, stock_actual: int, dias: int) -> pd.Series
 
 
 def resumen_ventas(dias: int) -> dict:
+    """Unidades e ingresos de los pedidos vendidos. El ingreso es el total del pedido, con su descuento."""
+    parametros = {"desde": date.today() - timedelta(days=dias), "estados": ESTADOS_QUE_VENDEN}
     with engine.connect() as conn:
-        fila = conn.execute(
+        # Dos consultas: unir con el detalle repetiría el total del pedido por cada línea.
+        unidades = conn.execute(
             text("""
-                SELECT COALESCE(SUM(d.cantidad), 0) AS unidades,
-                       COALESCE(SUM(d.cantidad * d.precio_unitario), 0) AS ingresos
+                SELECT COALESCE(SUM(d.cantidad), 0)
                 FROM detalle_venta d JOIN ventas v ON v.id = d.venta_id
-                WHERE v.fecha >= :desde AND NOT v.anulada
+                WHERE v.fecha >= :desde AND v.estado = ANY(:estados)
             """),
-            {"desde": date.today() - timedelta(days=dias)},
-        ).one()
-    return {"unidades": int(fila.unidades), "ingresos": float(fila.ingresos)}
+            parametros,
+        ).scalar_one()
+        ingresos = conn.execute(
+            text("SELECT COALESCE(SUM(total), 0) FROM ventas WHERE fecha >= :desde AND estado = ANY(:estados)"),
+            parametros,
+        ).scalar_one()
+    return {"unidades": int(unidades), "ingresos": float(ingresos)}
 
 
 def _producto(fila) -> dict:
