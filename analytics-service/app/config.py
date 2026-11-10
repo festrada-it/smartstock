@@ -17,4 +17,6 @@ PARAMETROS_POR_DEFECTO = {
     "dias_cobertura": 30,
     "umbral_criticidad_alta": 7,
     "umbral_criticidad_media": 15,
+    "margen_dias_proveedor_bajo": 3,
+    "clasificacion_proveedor_baja": 2,
 }

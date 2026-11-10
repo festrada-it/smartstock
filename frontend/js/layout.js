@@ -3,6 +3,9 @@
 const MENU = [
     { href: 'dashboard.html', texto: 'Monitor predictivo', icono: '📈', roles: ['ADMIN'] },
     { href: 'productos.html', texto: 'Productos y stock', icono: '📦', roles: ['ADMIN', 'VENDEDOR'] },
+    { href: 'proveedores.html', texto: 'Proveedores', icono: '🚚', roles: ['ADMIN', 'VENDEDOR'] },
+    { href: 'clientes.html', texto: 'Clientes', icono: '🏪', roles: ['ADMIN', 'VENDEDOR'] },
+    { href: 'grupos.html', texto: 'Grupos de productos', icono: '🏷️', roles: ['ADMIN'] },
     { href: 'ventas.html', texto: 'Ventas', icono: '🛒', roles: ['ADMIN', 'VENDEDOR'] },
     { href: 'usuarios.html', texto: 'Usuarios y parámetros', icono: '⚙️', roles: ['ADMIN'] },
 ];
