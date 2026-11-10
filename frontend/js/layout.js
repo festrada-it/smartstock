@@ -1,6 +1,7 @@
 // Menú lateral común a todas las pantallas. Muestra solo las opciones permitidas para el rol.
 
 const MENU = [
+    { href: 'panel.html', texto: 'Panel del vendedor', icono: '✅', roles: ['ADMIN', 'VENDEDOR'] },
     { href: 'dashboard.html', texto: 'Monitor predictivo', icono: '📈', roles: ['ADMIN'] },
     { href: 'productos.html', texto: 'Productos y stock', icono: '📦', roles: ['ADMIN', 'VENDEDOR'] },
     { href: 'proveedores.html', texto: 'Proveedores', icono: '🚚', roles: ['ADMIN', 'VENDEDOR'] },
