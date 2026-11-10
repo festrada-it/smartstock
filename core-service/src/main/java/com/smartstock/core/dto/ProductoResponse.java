@@ -1,6 +1,9 @@
 package com.smartstock.core.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.Objects;
+import com.smartstock.core.model.Lote;
 
 import com.smartstock.core.model.Producto;
 
@@ -18,7 +21,8 @@ public record ProductoResponse(
         String marca,
         Long proveedorId,
         String proveedor,
-        String grupo) {
+        String grupo,
+        LocalDate proximoVencimiento) {
 
     public enum EstadoStock { SIN_STOCK, BAJO_MINIMO, OK }
 
@@ -36,7 +40,9 @@ public record ProductoResponse(
                 estado(p),p.getMarca(),
                 p.getProveedor()!=null?p.getProveedor().getId():null,
                 p.getProveedor()!=null?p.getProveedor().getNombre():null,
-                p.getCategoria()!=null?p.getCategoria().getNombre():null);
+                p.getCategoria()!=null?p.getCategoria().getNombre():null,
+                p.getLotes().stream().filter(l -> l.getCantidadDisponible() > 0)
+                        .map(Lote::getFechaVencimiento).filter(Objects::nonNull).min(LocalDate::compareTo).orElse(null));
     }
 
     private static EstadoStock estado(Producto p) {

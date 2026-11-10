@@ -29,6 +29,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
+    @ExceptionHandler(StockInsuficienteException.class)
+    public ResponseEntity<Map<String, Object>> stockInsuficiente(StockInsuficienteException e) {
+        return ResponseEntity.badRequest().body(Map.of("error", e.getMessage(), "faltantes", e.getFaltantes()));
+    }
+
     @ExceptionHandler(NegocioException.class)
     public ResponseEntity<Map<String, String>> negocio(NegocioException e) {
         return error(HttpStatus.BAD_REQUEST, e.getMessage());

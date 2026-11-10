@@ -75,9 +75,10 @@ Cada venta a un cliente es un pedido.
 | Estado de la entrega | SIN PACTAR / PACTADA / ENTREGADA |
 | Número de factura | Se genera cuando el pedido se **entrega** |
 
-- Al **confirmar** el pedido se descuenta el stock. Si falta stock de algún producto, no se confirma nada.
-- Al confirmar se puede imprimir o descargar un **comprobante de la orden** para el cliente (no válido como factura).
-- Cancelar un pedido confirmado devuelve el stock.
+- Solo se puede **crear** un pedido si hay stock suficiente de todas las líneas. Al crearlo queda **PENDIENTE y reserva el stock**.
+- Si falta stock de alguna línea, el pedido no se crea y queda registrada una **venta perdida** del faltante (cantidad pedida − disponible), con fecha, cliente, vendedor, producto, cantidad pedida, cantidad disponible y precio. El vendedor ve: "No hay stock suficiente. Debe solicitarlo al proveedor y, una vez ingresado, puede hacer el pedido." Ventas sigue la misma regla.
+- **Confirmar** significa que el cliente aceptó la orden: no mueve stock. Al confirmar se puede imprimir o descargar un **comprobante de la orden** para el cliente (no válido como factura).
+- Cancelar un pedido PENDIENTE o CONFIRMADO devuelve el stock.
 
 ## 📈 Monitor predictivo y alertas
 
@@ -90,6 +91,8 @@ Cada venta a un cliente es un pedido.
 | Baja rotación | Vende menos del umbral del grupo (ej. **10% del stock en 30 días**) | Promocionar o mover el producto, comprar menos o no recomprar |
 
 Cada alerta tiene criticidad **ALTA / MEDIA / BAJA**.
+
+**Fill Rate** = unidades vendidas / (vendidas + perdidas), total y por cliente, junto con las **ventas perdidas en $** (faltante × precio unitario) por cliente y por producto.
 
 ## 👥 Quién hace qué
 

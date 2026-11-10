@@ -77,8 +77,8 @@ class ClienteIntegracionTest {
         var sinCliente=pedir(HttpMethod.POST,"/api/ventas",
                 Map.of("items",List.of(Map.of("productoId",productoId,"cantidad",1))),Rol.VENDEDOR);
         assertEquals(201,sinCliente.getStatusCode().value());
-        assertTrue(sinCliente.getBody().get("clienteId").isNull());
-        assertTrue(sinCliente.getBody().get("cliente").isNull());
+        assertTrue(sinCliente.getBody().hasNonNull("clienteId"));
+        assertEquals("Consumidor final",sinCliente.getBody().get("cliente").asText());
         crear();
         assertEquals(204,pedir(HttpMethod.DELETE,"/api/clientes/"+id,null,Rol.ADMIN).getStatusCode().value());
         assertEquals(404,venta(id,1).getStatusCode().value());
