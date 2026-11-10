@@ -15,6 +15,14 @@ class Prediccion(BaseModel):
     fecha_quiebre_estimada: date | None
     criticidad: str
     lote_sugerido: int
+    lead_time_dias: int
+    margen_dias: int
+    plazo_efectivo_dias: int
+    proveedor_id: int | None
+    proveedor: str | None
+    punto_reposicion: float | None
+    fecha_reposicion: date | None
+    comprar_ahora: bool | None
 
 
 class PuntoSerie(BaseModel):

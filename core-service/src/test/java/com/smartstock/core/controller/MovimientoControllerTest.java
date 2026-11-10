@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
+import java.util.List;
+import com.smartstock.core.dto.HistorialMovimientosResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -28,6 +30,8 @@ class MovimientoControllerTest {
 
     @Test
     void ambosRolesPuedenConsultarHistorial() throws Exception {
+        when(productos.movimientos(1L, 0, 50)).thenReturn(
+                new HistorialMovimientosResponse(List.of(), 0, 50, 0, 0));
         for (Rol rol : Rol.values()) {
             Usuario usuario = new Usuario();
             usuario.setEmail("persona@example.com");
@@ -35,7 +39,8 @@ class MovimientoControllerTest {
             usuario.setRol(rol);
             mvc.perform(get("/api/productos/1/movimientos")
                     .header("Authorization", "Bearer " + jwt.generar(usuario)))
-                    .andExpect(status().isOk()).andExpect(content().json("[]"));
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.contenido").isEmpty())
+                    .andExpect(jsonPath("$.tamanio").value(50));
         }
     }
 
@@ -46,7 +51,7 @@ class MovimientoControllerTest {
 
     @Test
     void productoAusenteDevuelve404() throws Exception {
-        when(productos.movimientos(99L)).thenThrow(new RecursoNoEncontradoException("Producto 99 no encontrado"));
+        when(productos.movimientos(99L, 0, 50)).thenThrow(new RecursoNoEncontradoException("Producto 99 no encontrado"));
         Usuario usuario = new Usuario();
         usuario.setEmail("admin@example.com");
         usuario.setNombre("Admin");

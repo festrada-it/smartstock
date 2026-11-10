@@ -113,7 +113,13 @@ def _predecir_todos() -> list[dict]:
 
 
 def _predecir(producto: dict, ventas: list[float], parametros: dict) -> dict:
-    estimacion = analizar_producto(ventas, producto["stock_actual"], producto["stock_minimo"], parametros)
+    proveedor = None
+    if producto.get("proveedor_id") is not None:
+        proveedor = {"id": producto["proveedor_id"], "nombre": producto["proveedor"],
+                     "lead_time_dias": producto["proveedor_lead_time_dias"],
+                     "clasificacion": producto["proveedor_clasificacion"],
+                     "calidad": producto["proveedor_calidad"]}
+    estimacion = analizar_producto(ventas, producto["stock_actual"], producto["stock_minimo"], parametros, proveedor)
     return {**producto, **estimacion}
 
 

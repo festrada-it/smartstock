@@ -129,7 +129,7 @@ Las filas marcadas con 🔜 están **planificadas** (ver [docs/plan-mejoras.md](
 | `/predicciones/{id}/tendencia` | Ventas diarias + pronóstico (gráfico) |
 | 🔜 `/vencimientos` | Lotes que vencen dentro de la ventana de su grupo, con criticidad (4.3) |
 | 🔜 `/rotacion` · `/rotacion/grupos` | Rotación de 30 días contra el umbral del grupo, con sugerencia (6.1) |
-| 🔜 `/predicciones` (amplía) | Punto de reposición según el lead time del proveedor y "comprar ahora" (7.1) |
+| `/predicciones` (amplía) | Punto de reposición según el lead time del proveedor y su margen, fecha de reposición y "comprar ahora" ([contrato](docs/REPOSICION.md), 7.1) |
 | 🔜 `/alertas/panel` | Alertas unificadas: quiebre, reposición, stock mínimo, vencimiento y baja rotación (8.1) |
 
 ## Desarrollo sin Docker (opcional)
