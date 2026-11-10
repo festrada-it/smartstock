@@ -28,12 +28,13 @@ Historial: `{contenido:[{id,fecha,total,anulada}],pagina,tamanio,totalElementos,
 Página desde 0; tamaño de 1 a 100, por defecto 50; valores fuera de rango: 400.
 Orden `fecha DESC, id DESC`. Fecha ISO local `yyyy-MM-ddTHH:mm:ss[.fracción]`,
 sin offset, como las ventas actuales. Una página fuera del total devuelve
-contenido vacío y conserva los totales. No se confunden estos registros con
-el futuro recurso `/api/pedidos`: todavía son ventas.
+contenido vacío y conserva los totales. Estos registros se conservan en
+`ventas`, también usada por `/api/pedidos` (#24).
 
 Productos: `[{productoId,producto,marca,unidadesCompradas,ultimaCompra}]`,
 ordenados por unidades descendentes y productoId. Se calcula desde detalle de
-ventas no anuladas; incluye productos históricos dados de baja. Marca/nombre
+ventas confirmadas, enviadas o entregadas; excluye pendientes y anuladas e
+incluye productos históricos dados de baja. Marca/nombre
 son los actuales del catálogo. Un cliente sin historial devuelve listas vacías.
 Cliente inexistente o inactivo: 404 en todos sus endpoints. La baja no borra
 ventas ni impide que se vea su nombre en una venta conservada.
@@ -41,8 +42,9 @@ ventas ni impide que se vea su nombre en una venta conservada.
 ## Compatibilidad de ventas
 
 `POST /api/ventas` acepta `clienteId` opcional, de un cliente activo existente.
-Si se omite o es null, la venta conserva cliente null para mantener la
-compatibilidad del frontend actual. El selector del frontend puede elegir
+Desde #24, si se omite o es null, se asocia al cliente activo Consumidor final,
+recuperándolo o recreándolo si fue renombrado o dado de baja. La venta legacy
+crea un pedido CONFIRMADO. El selector del frontend puede elegir
 el registro `Consumidor final` consultando `/api/clientes`, sin asumir su id.
 
 `VentaResponse` conserva los campos existentes y agrega `clienteId`, `cliente`
