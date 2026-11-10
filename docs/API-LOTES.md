@@ -43,6 +43,37 @@ Historial paginado de movimientos agrega `loteId`, null para el histórico sin
 asignación. Los campos previos se conservan. Sin JWT:401; errores de entrada:
 400 JSON español; proveedor/producto inexistente o proveedor inactivo:404.
 
+## Retiro de lotes vencidos
+
+`POST /api/lotes/{id}/retirar`, ADMIN y VENDEDOR. Registra que la mercadería
+vencida salió del local. El retiro físico se coordina fuera del sistema.
+Cuerpo opcional:
+
+```json
+{"observacion":"Retirado por la empresa de residuos, remito 0001-45"}
+```
+
+Retira el **lote completo**: deja `cantidadDisponible` en 0, descuenta esa
+cantidad de `stock_actual` y registra un movimiento `AJUSTE` negativo con
+`loteId`, el usuario del JWT y la observación `Retiro de lote vencido`, seguida
+de la del cuerpo si viene (hasta 230 caracteres). Conserva
+`SUM(lotes.cantidad_disponible)=stock_actual`. Funciona aunque el producto esté
+dado de baja.
+
+Resultado 200:
+
+```json
+{"loteId":7,"productoId":1,"producto":"Yogur 1L","fechaVencimiento":"2026-11-08","cantidadRetirada":12,"stockActual":30}
+```
+
+- Solo se retira un lote vencido (`fechaVencimiento` anterior a hoy en
+  America/Argentina/Buenos_Aires); un lote que vence hoy o sin vencimiento: 400.
+- Un lote sin unidades disponibles, incluso por un retiro concurrente: 400.
+- Lote inexistente: 404. Sin JWT: 401. Observación de más de 230 caracteres: 400.
+
+Bloquea primero el producto y después el lote, en el mismo orden que ventas y
+compras. Los lotes a retirar los lista el endpoint de vencimientos de analytics (#22).
+
 ## Esquema para analytics
 
 `database/init/07_lotes.sql` es incremental/idempotente y contiene:
