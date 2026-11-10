@@ -22,10 +22,7 @@ class ProductoGruposIntegracionTest {
     Long productoId;
     Long grupoId;
     @AfterEach void limpiar() {
-        if (productoId != null) {
-            db.update("DELETE FROM movimientos_stock WHERE producto_id=?", productoId);
-            db.update("DELETE FROM productos WHERE id=?", productoId);
-        }
+        if(productoId!=null) db.update("DELETE FROM productos WHERE id=?",productoId);
         if(grupoId!=null) db.update("DELETE FROM categorias WHERE id=?",grupoId);
     }
     @Test void productoExponeMarcaProveedorGrupoYMinimoPorDefecto() {
@@ -104,29 +101,33 @@ class ProductoGruposIntegracionTest {
         assertEquals(201, creado.getStatusCode().value());
         productoId = creado.getBody().get("id").asLong();
         String ruta = "/api/productos/" + productoId;
-        assertEquals(201, pedir(HttpMethod.POST, "/api/compras",
-                Map.of("productoId", productoId, "cantidad", 3), Rol.ADMIN).getStatusCode().value());
-        var historial = pedir(HttpMethod.GET, ruta + "/movimientos", null, Rol.ADMIN).getBody();
-        assertEquals(204, pedir(HttpMethod.DELETE, ruta, null, Rol.ADMIN).getStatusCode().value());
+        try {
+            assertEquals(201, pedir(HttpMethod.POST, "/api/compras",
+                    Map.of("productoId", productoId, "cantidad", 3), Rol.ADMIN).getStatusCode().value());
+            var historial = pedir(HttpMethod.GET, ruta + "/movimientos", null, Rol.ADMIN).getBody();
+            assertEquals(204, pedir(HttpMethod.DELETE, ruta, null, Rol.ADMIN).getStatusCode().value());
 
-        String lista = "/api/productos?q=" + sku + "&categoriaId=" + grupo + "&proveedorId=" + proveedor;
-        assertTrue(pedir(HttpMethod.GET, lista, null, Rol.VENDEDOR).getBody().isEmpty());
-        var bajas = pedir(HttpMethod.GET, lista + "&activo=false", null, Rol.ADMIN).getBody();
-        assertEquals(1, bajas.size());
-        assertEquals(productoId.longValue(), bajas.get(0).get("id").asLong());
-        assertTrue(pedir(HttpMethod.GET, "/api/productos?activo=false&q=SKU-INEXISTENTE", null, Rol.ADMIN)
-                .getBody().isEmpty());
+            String lista = "/api/productos?q=" + sku + "&categoriaId=" + grupo + "&proveedorId=" + proveedor;
+            assertTrue(pedir(HttpMethod.GET, lista, null, Rol.VENDEDOR).getBody().isEmpty());
+            var bajas = pedir(HttpMethod.GET, lista + "&activo=false", null, Rol.ADMIN).getBody();
+            assertEquals(1, bajas.size());
+            assertEquals(productoId.longValue(), bajas.get(0).get("id").asLong());
+            assertTrue(pedir(HttpMethod.GET, "/api/productos?activo=false&q=SKU-INEXISTENTE", null, Rol.ADMIN)
+                    .getBody().isEmpty());
 
-        var reactivado = pedir(HttpMethod.PUT, ruta + "/reactivar", null, Rol.ADMIN);
-        assertEquals(200, reactivado.getStatusCode().value());
-        assertEquals(productoId.longValue(), reactivado.getBody().get("id").asLong());
-        assertEquals(15, reactivado.getBody().get("stockActual").asInt());
-        assertFalse(historial.isEmpty());
-        assertEquals(historial, pedir(HttpMethod.GET, ruta + "/movimientos", null, Rol.ADMIN).getBody());
-        assertEquals(reactivado.getBody(), pedir(HttpMethod.PUT, ruta + "/reactivar", null, Rol.ADMIN).getBody());
-        assertEquals(1, pedir(HttpMethod.GET, lista, null, Rol.VENDEDOR).getBody().size());
-        assertEquals(404, pedir(HttpMethod.PUT, "/api/productos/" + Long.MAX_VALUE + "/reactivar",
-                null, Rol.ADMIN).getStatusCode().value());
+            var reactivado = pedir(HttpMethod.PUT, ruta + "/reactivar", null, Rol.ADMIN);
+            assertEquals(200, reactivado.getStatusCode().value());
+            assertEquals(productoId.longValue(), reactivado.getBody().get("id").asLong());
+            assertEquals(15, reactivado.getBody().get("stockActual").asInt());
+            assertFalse(historial.isEmpty());
+            assertEquals(historial, pedir(HttpMethod.GET, ruta + "/movimientos", null, Rol.ADMIN).getBody());
+            assertEquals(reactivado.getBody(), pedir(HttpMethod.PUT, ruta + "/reactivar", null, Rol.ADMIN).getBody());
+            assertEquals(1, pedir(HttpMethod.GET, lista, null, Rol.VENDEDOR).getBody().size());
+            assertEquals(404, pedir(HttpMethod.PUT, "/api/productos/" + Long.MAX_VALUE + "/reactivar",
+                    null, Rol.ADMIN).getStatusCode().value());
+        } finally {
+            db.update("DELETE FROM movimientos_stock WHERE producto_id=?", productoId);
+        }
     }
 
     ResponseEntity<JsonNode> pedir(HttpMethod metodo,String ruta,Object datos,Rol rol) {
