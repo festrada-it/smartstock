@@ -29,7 +29,7 @@ import com.smartstock.core.security.JwtAuthFilter;
 /**
  * Reglas de acceso por rol (RBAC):
  * - ADMIN: todo (catálogo, usuarios, parámetros, ventas, compras).
- * - VENDEDOR: consulta de catálogo, carga de ventas e ingreso de mercadería.
+ * - VENDEDOR: consulta de catálogo, carga de ventas, ingreso de mercadería y retiro de lotes vencidos.
  */
 @Configuration
 @EnableWebSecurity
@@ -66,6 +66,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/clientes/**").hasRole(ADMIN)
                 .requestMatchers(HttpMethod.POST, "/api/ventas/*/anular", "/api/pedidos/*/cancelar").hasRole(ADMIN)
                 .requestMatchers("/api/ventas/**", "/api/compras/**", "/api/pedidos/**").hasAnyRole(ADMIN, VENDEDOR)
+                .requestMatchers(HttpMethod.POST, "/api/lotes/*/retirar").hasAnyRole(ADMIN, VENDEDOR)
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

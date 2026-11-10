@@ -16,6 +16,99 @@
     <main class="tw-flex-1 tw-p-8">
         <h1 class="tw-mb-6 tw-text-2xl tw-font-bold tw-text-slate-800">Monitor predictivo &amp; dashboard</h1>
         <div id="mensajes"></div>
+        <div id="aviso-ejemplo-reposicion" class="alert alert-warning d-none">
+            <strong>Datos de ejemplo.</strong> El punto de reposición y "comprar ahora" todavía no salen de analytics (#30):
+            se calculan con la fórmula del contrato para poder ver la pantalla.
+        </div>
+
+        <!-- Dashboards de dirección (plan-mejoras §10.5) -->
+        <div id="aviso-ejemplo-dashboard" class="alert alert-warning d-none">
+            <strong>Datos de ejemplo.</strong> El DSI y la rotación todavía no salen de analytics (#57):
+            se muestran valores de ejemplo con la forma del contrato para poder ver la pantalla.
+        </div>
+
+        <!-- Filtros: aplican a las tres pestañas -->
+        <section class="tarjeta tw-mb-4 tw-flex tw-flex-wrap tw-items-end tw-gap-4" aria-label="Filtros de los indicadores">
+            <div>
+                <label for="filtro-periodo" class="form-label tw-mb-1 tw-text-sm tw-text-slate-500">Período</label>
+                <select id="filtro-periodo" class="form-select form-select-sm tw-w-auto">
+                    <option value="30">Últimos 30 días</option>
+                    <option value="90">Últimos 90 días</option>
+                </select>
+            </div>
+            <div>
+                <label for="filtro-grupo" class="form-label tw-mb-1 tw-text-sm tw-text-slate-500">Grupo</label>
+                <select id="filtro-grupo" class="form-select form-select-sm tw-w-auto">
+                    <option value="">Todos los grupos</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Tarjetas de dirección -->
+        <section id="tarjetas-direccion" class="tw-mb-4 tw-grid tw-grid-cols-1 tw-gap-4 md:tw-grid-cols-2 xl:tw-grid-cols-4" aria-live="polite"></section>
+
+        <!-- Pestañas de dirección -->
+        <section class="tarjeta tw-mb-6">
+            <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="pestania-salud" data-bs-toggle="tab" data-bs-target="#panel-salud"
+                            type="button" role="tab" aria-controls="panel-salud" aria-selected="true">Salud del inventario</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pestania-lento" data-bs-toggle="tab" data-bs-target="#panel-lento"
+                            type="button" role="tab" aria-controls="panel-lento" aria-selected="false">Lento movimiento</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pestania-fill-rate" data-bs-toggle="tab" data-bs-target="#panel-fill-rate"
+                            type="button" role="tab" aria-controls="panel-fill-rate" aria-selected="false">Fill Rate</button>
+                </li>
+            </ul>
+            <div class="tab-content tw-pt-4">
+                <div class="tab-pane fade show active" id="panel-salud" role="tabpanel" aria-labelledby="pestania-salud">
+                    <div id="salud-totales" class="tw-mb-4 tw-grid tw-grid-cols-2 tw-gap-4 lg:tw-grid-cols-4"></div>
+                    <h3 class="tw-mb-2 tw-text-sm tw-font-semibold tw-text-slate-800">Por grupo, de peor a mejor</h3>
+                    <div class="table-responsive tw-mb-4">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Grupo</th>
+                                    <th>Semáforo DSI</th>
+                                    <th class="text-end">DSI</th>
+                                    <th class="text-end">Rotación mensual</th>
+                                    <th class="text-end">Rotación anual</th>
+                                    <th class="text-end">Valor del stock</th>
+                                    <th class="text-end">Costo de ventas</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-salud-grupos" class="tw-tabular-nums"></tbody>
+                        </table>
+                    </div>
+                    <h3 class="tw-mb-2 tw-text-sm tw-font-semibold tw-text-slate-800">Por producto, de peor a mejor</h3>
+                    <div class="table-responsive tw-max-h-96 tw-overflow-y-auto">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Producto</th>
+                                    <th>Grupo</th>
+                                    <th>Semáforo DSI</th>
+                                    <th class="text-end">DSI</th>
+                                    <th class="text-end">Rotación mensual</th>
+                                    <th class="text-end">Valor del stock</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-salud-productos" class="tw-tabular-nums"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="panel-lento" role="tabpanel" aria-labelledby="pestania-lento">
+                    <p class="tw-mb-0 tw-text-sm tw-text-slate-500">Disponible próximamente: $ en riesgo, motivos y acciones sugeridas (#61).</p>
+                </div>
+                <div class="tab-pane fade" id="panel-fill-rate" role="tabpanel" aria-labelledby="pestania-fill-rate">
+                    <p class="tw-mb-0 tw-text-sm tw-text-slate-500">Disponible próximamente: Fill Rate por cadena con la línea objetivo (#62).</p>
+                </div>
+            </div>
+        </section>
 
         <!-- Métricas globales -->
         <section class="tw-mb-6 tw-grid tw-grid-cols-1 tw-gap-4 md:tw-grid-cols-4">
@@ -41,6 +134,31 @@
             </div>
         </section>
 
+        <!-- Panel unificado de alertas (#33) -->
+        <section class="tarjeta tw-mb-6" aria-labelledby="titulo-panel">
+            <div class="tw-mb-3 tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-2">
+                <h2 id="titulo-panel" class="tw-m-0 tw-text-base tw-font-semibold tw-text-slate-800">Panel de alertas</h2>
+                <div class="tw-flex tw-flex-wrap tw-gap-2">
+                    <select id="filtro-tipo-alerta" class="form-select form-select-sm tw-w-auto" aria-label="Filtrar por tipo">
+                        <option value="">Todos los tipos</option>
+                    </select>
+                    <select id="filtro-criticidad-alerta" class="form-select form-select-sm tw-w-auto" aria-label="Filtrar por criticidad">
+                        <option value="">Todas las criticidades</option>
+                        <option value="ALTA">Alta</option>
+                        <option value="MEDIA">Media</option>
+                        <option value="BAJA">Baja</option>
+                    </select>
+                </div>
+            </div>
+            <div id="aviso-ejemplo-alertas" class="alert alert-warning tw-py-2 d-none">
+                <strong>Datos de ejemplo.</strong> El panel unificado todavía no está disponible en analytics (#32).
+            </div>
+            <div id="contadores-alertas" class="tw-mb-3 tw-flex tw-flex-wrap tw-gap-2"></div>
+            <div id="panel-alertas" class="tw-flex tw-max-h-96 tw-flex-col tw-gap-2 tw-overflow-y-auto" aria-live="polite">
+                <div class="tw-text-sm tw-text-slate-500">Cargando...</div>
+            </div>
+        </section>
+
         <section class="tw-mb-6 tw-grid tw-grid-cols-1 tw-gap-4 lg:tw-grid-cols-3">
             <!-- Proyección de stock -->
             <div class="tarjeta lg:tw-col-span-2">
@@ -52,6 +170,7 @@
                 </div>
                 <div class="tw-relative tw-h-72"><canvas id="grafico-stock" aria-label="Stock histórico y proyectado"></canvas></div>
                 <p id="nota-quiebre" class="tw-mb-0 tw-mt-2 tw-text-sm tw-text-slate-600"></p>
+                <div id="detalle-reposicion" class="tw-mt-3 tw-rounded-lg tw-border tw-bg-slate-50 tw-p-3 tw-text-sm" aria-live="polite"></div>
             </div>
 
             <!-- Alertas -->
@@ -87,6 +206,8 @@
                             <th class="text-end">Días hasta quiebre</th>
                             <th>Fecha estimada</th>
                             <th class="text-end">Compra sugerida</th>
+                            <th class="text-end">Punto de reposición</th>
+                            <th>Pedir antes de</th>
                         </tr>
                     </thead>
                     <tbody id="tabla-predicciones" class="tw-tabular-nums"></tbody>
@@ -101,6 +222,12 @@
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/layout.js"></script>
+<script src="js/datos-ejemplo-reposicion.js"></script>
+<script src="js/datos-ejemplo-alertas.js"></script>
 <script src="js/dashboard.js"></script>
+<script src="js/panel-alertas.js"></script>
+<script src="js/indicadores.js"></script>
+<script src="js/datos-ejemplo-dashboard.js"></script>
+<script src="js/dashboard-direccion.js"></script>
 </body>
 </html>

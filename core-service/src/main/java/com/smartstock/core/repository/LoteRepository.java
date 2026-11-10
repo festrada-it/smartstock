@@ -17,4 +17,12 @@ public interface LoteRepository extends JpaRepository<Lote, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT l FROM Lote l WHERE l.producto.id=:id ORDER BY l.id")
     List<Lote> bloquearPorProducto(@Param("id") Long id);
+
+    /** Solo el id del producto, sin bloquear: permite tomar el bloqueo del producto antes que el del lote. */
+    @Query("SELECT l.producto.id FROM Lote l WHERE l.id=:id")
+    java.util.Optional<Long> productoDe(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT l FROM Lote l WHERE l.id=:id")
+    java.util.Optional<Lote> bloquear(@Param("id") Long id);
 }

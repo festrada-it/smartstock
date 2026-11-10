@@ -16,6 +16,10 @@ const RIESGO = {
     BAJA: { icono: '✅', etiqueta: 'Bajo', color: '#0ca30c', fondo: '', texto: 'text-success' },
 };
 
+// Predicciones del monitor, con los campos de reposición (#30). Se usan en la tabla y en el detalle.
+let predicciones = [];
+let productosCore = new Map();
+
 let graficoStock = null;
 let graficoTendencia = null;
 
@@ -25,7 +29,8 @@ Chart.defaults.color = COLORES.texto;
 async function iniciar() {
     renderLayout(sesion);
     try {
-        const [resumen, predicciones] = await Promise.all([analyticsApi('/resumen'), analyticsApi('/predicciones')]);
+        const [resumen, respuesta] = await Promise.all([analyticsApi('/resumen'), analyticsApi('/predicciones')]);
+        predicciones = ordenarPorReposicion(await completarReposicion(respuesta));
         renderResumen(resumen);
         renderAlertas(predicciones.filter(p => p.criticidad !== 'BAJA'));
         renderTabla(predicciones);
@@ -34,6 +39,53 @@ async function iniciar() {
     } catch (e) {
         mostrarMensaje(`No se pudo cargar el monitor predictivo: ${e.message}`, 'danger');
     }
+}
+
+/** Mientras analytics no devuelve los campos de #30, los completa con datos de ejemplo (ver config.js). */
+async function completarReposicion(lista) {
+    // El nombre del proveedor sale del catálogo de core: es un dato a mostrar, no un cálculo.
+    const productos = await coreApi('/productos').catch(() => []);
+    productosCore = new Map(productos.map(p => [p.id, p]));
+    if (!CONFIG.DATOS_EJEMPLO?.reposicion) return lista;
+    document.getElementById('aviso-ejemplo-reposicion').classList.remove('d-none');
+    const [proveedores, parametros] = await Promise.all([coreApi('/proveedores').catch(() => []), coreApi('/parametros').catch(() => [])]);
+    const porId = new Map(proveedores.map(p => [p.id, p]));
+    const diasReposicion = Number(parametros.find(p => p.clave === 'dias_reposicion')?.valor ?? 7);
+    return lista.map(p => {
+        const producto = productosCore.get(p.id);
+        return ReposicionEjemplo.completar(p, producto, porId.get(producto?.proveedorId), diasReposicion);
+    });
+}
+
+/** "Comprar ahora" primero; después, en el orden que manda analytics. */
+function ordenarPorReposicion(lista) {
+    return lista.map((p, i) => [p, i]).sort(([a, i], [b, j]) => (b.comprar_ahora === true) - (a.comprar_ahora === true) || i - j).map(([p]) => p);
+}
+
+/** null no es "no comprar": significa que falta historial (docs/REPOSICION.md). */
+function textoReposicion(p) {
+    if (p.comprar_ahora === null || p.comprar_ahora === undefined) return '<span class="tw-text-slate-500">Sin historial</span>';
+    if (p.comprar_ahora) return '<span class="badge text-bg-danger">🛒 Comprar ahora</span>';
+    return p.fecha_reposicion ? formatoFecha(p.fecha_reposicion) : '<span class="tw-text-slate-500">Más de 60 días</span>';
+}
+
+function renderDetalleReposicion(id) {
+    const p = predicciones.find(x => x.id === id);
+    const contenedor = document.getElementById('detalle-reposicion');
+    if (!p) { contenedor.innerHTML = ''; return; }
+    const proveedor = p.proveedor ?? productosCore.get(id)?.proveedor ?? null;
+    const margen = p.margen_dias == null ? '<span class="tw-text-slate-500">a confirmar por analytics</span>'
+        : p.margen_dias > 0 ? `+${p.margen_dias} días (proveedor de riesgo)` : 'sin margen';
+    contenedor.innerHTML = `
+        <div class="tw-mb-1 tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-2">
+            <span class="tw-font-semibold">Reposición</span> ${textoReposicion(p)}
+        </div>
+        <div class="tw-grid tw-grid-cols-2 tw-gap-x-4 md:tw-grid-cols-4">
+            <div><span class="tw-text-slate-500">Proveedor</span><br>${escaparHtml(proveedor || 'Sin proveedor')}</div>
+            <div><span class="tw-text-slate-500">Lead time</span><br>${p.lead_time_dias ?? '-'} días${proveedor ? '' : ' (parámetro global)'}</div>
+            <div><span class="tw-text-slate-500">Margen aplicado</span><br>${margen}</div>
+            <div><span class="tw-text-slate-500">Punto de reposición</span><br>${p.punto_reposicion == null ? '-' : `${Math.ceil(p.punto_reposicion)} u.`}</div>
+        </div>`;
 }
 
 function renderResumen(r) {
@@ -71,7 +123,7 @@ function renderTabla(predicciones) {
         const r = RIESGO[p.criticidad];
         return `
             <tr>
-                <td class="${r.texto} tw-whitespace-nowrap">${r.icono} ${r.etiqueta}</td>
+                <td class="${r.texto} tw-whitespace-nowrap">${r.icono} ${r.etiqueta}${p.comprar_ahora === true ? ' <span class="badge text-bg-danger">Comprar ahora</span>' : ''}</td>
                 <td class="tw-font-mono">${escaparHtml(p.sku)}</td>
                 <td>${escaparHtml(p.nombre)}</td>
                 <td class="text-end">${p.stock_actual}</td>
@@ -80,6 +132,8 @@ function renderTabla(predicciones) {
                 <td class="text-end fw-semibold">${p.dias_hasta_quiebre ?? '> 60'}</td>
                 <td>${formatoFecha(p.fecha_quiebre_estimada)}</td>
                 <td class="text-end fw-semibold">${p.lote_sugerido > 0 ? `${p.lote_sugerido} u.` : '-'}</td>
+                <td class="text-end">${p.punto_reposicion == null ? '-' : `${Math.ceil(p.punto_reposicion)} u.`}</td>
+                <td class="tw-whitespace-nowrap">${textoReposicion(p)}</td>
             </tr>`;
     }).join('');
 }
@@ -101,6 +155,7 @@ async function seleccionarProducto(id) {
     document.getElementById('titulo-tendencia').textContent = nombre;
     renderGraficoStock(proyeccion);
     renderGraficoTendencia(tendencia);
+    renderDetalleReposicion(id);
 }
 
 function etiquetaDia(iso) {
