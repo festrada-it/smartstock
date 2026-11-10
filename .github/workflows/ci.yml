@@ -39,6 +39,10 @@ jobs:
           for script in ../database/init/*.sql; do
             docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U smartstock -d smartstock < "$script"
           done
+      - name: Verificar datos de inventario e idempotencia
+        run: |
+          docker cp ../database "${{ job.services.postgres.id }}:/tmp/database"
+          docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U smartstock -d smartstock -f /tmp/database/tests/10_inventario_idempotencia.sql
       - run: chmod +x mvnw && ./mvnw -B verify
 
   analytics-service:
