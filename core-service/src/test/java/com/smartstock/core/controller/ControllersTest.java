@@ -72,6 +72,8 @@ class ControllersTest {
                 Arguments.of("DELETE", "/api/proveedores/1", "", 204, false),
                 Arguments.of("GET", "/api/productos", "", 200, true),
                 Arguments.of("GET", "/api/productos/1", "", 200, true),
+                Arguments.of("GET", "/api/productos?activo=false", "", 200, false),
+                Arguments.of("PUT", "/api/productos/1/reactivar", "", 200, false),
                 Arguments.of("POST", "/api/productos", producto, 201, false),
                 Arguments.of("PUT", "/api/productos/1", producto, 200, false),
                 Arguments.of("DELETE", "/api/productos/1", "", 204, false),

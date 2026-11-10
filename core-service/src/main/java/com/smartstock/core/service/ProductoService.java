@@ -45,11 +45,11 @@ public class ProductoService {
                 .map(MovimientoStockResponse::desde).toList();
     }
 
-    /** Lista los productos activos, filtrando opcionalmente por texto (nombre o SKU) y categoría. */
+    /** Lista por estado y aplica los filtros de catálogo. */
     @Transactional(readOnly = true)
-    public List<ProductoResponse> listar(String busqueda, Long categoriaId,Long proveedorId) {
+    public List<ProductoResponse> listar(String busqueda, Long categoriaId, Long proveedorId, boolean activo) {
         String texto = busqueda == null ? "" : busqueda.trim().toLowerCase(Locale.ROOT);
-        return productoRepository.findActivosConCategoria().stream()
+        return productoRepository.findPorEstadoConCategoria(activo).stream()
                 .filter(p -> texto.isEmpty()
                         || p.getNombre().toLowerCase(Locale.ROOT).contains(texto)
                         || p.getSku().toLowerCase(Locale.ROOT).contains(texto))
@@ -63,6 +63,14 @@ public class ProductoService {
     @Transactional(readOnly = true)
     public ProductoResponse obtener(Long id) {
         return ProductoResponse.desde(buscarActivo(id));
+    }
+
+    @Transactional
+    public ProductoResponse reactivar(Long id) {
+        Producto producto = productoRepository.findByIdParaActualizar(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Producto " + id + " no encontrado"));
+        producto.setActivo(true);
+        return ProductoResponse.desde(producto);
     }
 
     @Transactional
