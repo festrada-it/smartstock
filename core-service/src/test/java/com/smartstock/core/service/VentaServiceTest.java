@@ -21,7 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.smartstock.core.dto.VentaRequest;
 import com.smartstock.core.dto.VentaResponse;
-import com.smartstock.core.exception.NegocioException;
+import com.smartstock.core.exception.StockInsuficienteException;
 import com.smartstock.core.model.Producto;
 import com.smartstock.core.model.Rol;
 import com.smartstock.core.model.Usuario;
@@ -41,6 +41,12 @@ class VentaServiceTest {
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private MovimientoStockRepository movimientoRepository;
 
+    @Mock private com.smartstock.core.repository.ClienteRepository clienteRepository;
+    @Mock private org.springframework.jdbc.core.JdbcTemplate db;
+    @Mock LoteService loteService;
+    @Mock com.smartstock.core.repository.LoteRepository lotes;
+    @Mock com.smartstock.core.repository.ConsumoLoteRepository consumos;
+    @Mock com.smartstock.core.repository.VentaPerdidaRepository ventasPerdidas;
     @InjectMocks private VentaService ventaService;
 
     private Producto yerba;
@@ -53,6 +59,10 @@ class VentaServiceTest {
         vendedor.setRol(Rol.VENDEDOR);
         when(usuarioRepository.findByEmail(EMAIL)).thenReturn(Optional.of(vendedor));
 
+        var cliente = new com.smartstock.core.model.Cliente();
+        cliente.setNombre("Consumidor final");
+        when(clienteRepository.findFirstByNombreAndActivoTrueOrderByIdAsc("Consumidor final"))
+                .thenReturn(Optional.of(cliente));
         yerba = new Producto();
         yerba.setId(1L);
         yerba.setNombre("Yerba mate 1kg");
@@ -64,6 +74,7 @@ class VentaServiceTest {
     @Test
     void registrarVentaDescuentaStockYCalculaTotal() {
         when(ventaRepository.save(any(Venta.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(lotes.bloquearDisponiblesFefo(1L)).thenReturn(List.of(new com.smartstock.core.model.Lote(yerba, null, 10, null, java.time.LocalDate.now(), BigDecimal.ZERO, true)));
 
         VentaResponse respuesta = ventaService.registrar(
                 new VentaRequest(List.of(new VentaRequest.Item(1L, 3))), EMAIL);
@@ -75,12 +86,16 @@ class VentaServiceTest {
     }
 
     @Test
-    void registrarVentaSinStockSuficienteFallaYNoGuarda() {
+    void registrarVentaSinStockSuficienteRegistraLaVentaPerdidaSinCrearNada() {
+        when(lotes.bloquearDisponiblesFefo(1L)).thenReturn(List.of(new com.smartstock.core.model.Lote(yerba, null, 10, null, java.time.LocalDate.now(), BigDecimal.ZERO, true)));
         VentaRequest request = new VentaRequest(List.of(new VentaRequest.Item(1L, 11)));
 
-        NegocioException error = assertThrows(NegocioException.class, () -> ventaService.registrar(request, EMAIL));
+        StockInsuficienteException error = assertThrows(StockInsuficienteException.class, () -> ventaService.registrar(request, EMAIL));
 
-        assertEquals(true, error.getMessage().contains("Stock insuficiente"));
+        assertEquals("No hay stock suficiente", error.getMessage());
+        assertEquals(1, error.getFaltantes().get(0).faltante());
+        verify(ventasPerdidas).saveAll(anyList());
         verify(ventaRepository, never()).save(any());
+        verify(movimientoRepository, never()).saveAll(any());
     }
 }
