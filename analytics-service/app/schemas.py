@@ -58,6 +58,35 @@ class Vencimiento(BaseModel):
     dias_alerta_grupo: int
 
 
+class MedicionFillRate(BaseModel):
+    vendidas: int
+    perdidas: int
+    fill_rate: float | None
+    ventas_perdidas_monto: float
+    semaforo: str | None
+
+
+class FillRateCliente(MedicionFillRate):
+    cliente_id: int | None
+    cliente: str
+
+
+class PerdidaProducto(BaseModel):
+    producto_id: int
+    producto: str
+    perdidas: int
+    ventas_perdidas_monto: float
+
+
+class FillRate(BaseModel):
+    periodo: int
+    objetivo: float
+    total: MedicionFillRate
+    anterior: MedicionFillRate
+    por_cliente: list[FillRateCliente]
+    por_producto: list[PerdidaProducto]
+
+
 class Resumen(BaseModel):
     productos_activos: int
     valor_total_stock: float

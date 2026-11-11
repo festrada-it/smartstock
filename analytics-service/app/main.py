@@ -4,10 +4,11 @@ import numpy as np
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import config, db
+from app import config, db, fill_rate
 from app.auth import usuario_actual
 from app.prediccion import ALTA, MEDIA, analizar_producto, proyectar_demanda
-from app.schemas import Prediccion, ProyeccionStock, PuntoSerie, Resumen, TendenciaVentas, Vencimiento
+from app.schemas import (FillRate, Prediccion, ProyeccionStock, PuntoSerie, Resumen, TendenciaVentas,
+                         Vencimiento)
 from app.vencimientos import listar_vencimientos
 
 app = FastAPI(title="SmartStock - Analytics Service", version="0.2.0")
@@ -22,6 +23,7 @@ app.add_middleware(
 api = APIRouter(prefix="/api", dependencies=[Depends(usuario_actual)])
 
 _ORDEN_CRITICIDAD = {ALTA: 0, MEDIA: 1}
+PERIODOS_DASHBOARD = (30, 90)
 
 
 @app.get("/health")
@@ -87,6 +89,25 @@ def tendencia_ventas(producto_id: int,
 def vencimientos():
     """Lotes que vencen dentro de la ventana de su grupo (o ya vencidos), de la más crítica a la menos."""
     return listar_vencimientos(db.lotes_con_vencimiento(), date.today())
+
+
+@api.get("/dashboard/fill-rate", response_model=FillRate)
+def dashboard_fill_rate(periodo: int = 30, grupo_id: int | None = None, cliente_id: int | None = None):
+    """Fill Rate total y por cadena, con el período anterior y lo que se dejó de vender por falta de stock."""
+    if periodo not in PERIODOS_DASHBOARD:
+        raise HTTPException(status_code=422, detail="El período debe ser 30 o 90 días")
+    fin = date.today() + timedelta(days=1)
+    inicio = fin - timedelta(days=periodo)
+    vendidas, perdidas = db.lineas_fill_rate(inicio, fin)
+    vendidas_antes, perdidas_antes = db.lineas_fill_rate(inicio - timedelta(days=periodo), inicio)
+    return {
+        "periodo": periodo,
+        "objetivo": db.obtener_parametros()["fill_rate_objetivo"],
+        "total": fill_rate.totalizar(vendidas, perdidas, grupo_id, cliente_id),
+        "anterior": fill_rate.totalizar(vendidas_antes, perdidas_antes, grupo_id, cliente_id),
+        "por_cliente": fill_rate.por_cliente(vendidas, perdidas, grupo_id, cliente_id),
+        "por_producto": fill_rate.por_producto(perdidas, grupo_id, cliente_id),
+    }
 
 
 @api.get("/resumen", response_model=Resumen)

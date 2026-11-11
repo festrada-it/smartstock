@@ -131,6 +131,37 @@ def lotes_con_vencimiento() -> list[dict]:
         return [dict(fila._mapping) for fila in filas]
 
 
+def lineas_fill_rate(desde: date, hasta: date) -> tuple[list[dict], list[dict]]:
+    """Unidades vendidas y faltantes (ventas perdidas) con fecha en [desde, hasta), por cliente y producto.
+    No filtra por grupo ni cliente: eso lo hace app.fill_rate, que también arma el período anterior."""
+    parametros = {"desde": desde, "hasta": hasta}
+    with engine.connect() as conn:
+        vendidas = conn.execute(text("""
+            SELECT v.cliente_id, COALESCE(c.nombre, 'Sin cliente') AS cliente, d.producto_id,
+                   p.nombre AS producto, p.categoria_id AS grupo_id, SUM(d.cantidad) AS unidades
+            FROM detalle_venta d
+            JOIN ventas v ON v.id = d.venta_id
+            JOIN productos p ON p.id = d.producto_id
+            LEFT JOIN clientes c ON c.id = v.cliente_id
+            WHERE v.estado = ANY(:estados) AND v.fecha >= :desde AND v.fecha < :hasta
+            GROUP BY v.cliente_id, c.nombre, d.producto_id, p.nombre, p.categoria_id
+        """), {**parametros, "estados": ESTADOS_QUE_VENDEN})
+        vendidas = [{**fila._mapping, "unidades": int(fila.unidades)} for fila in vendidas]
+        perdidas = conn.execute(text("""
+            SELECT vp.cliente_id, COALESCE(c.nombre, 'Sin cliente') AS cliente, vp.producto_id,
+                   p.nombre AS producto, p.categoria_id AS grupo_id,
+                   SUM(vp.cantidad_pedida - vp.cantidad_disponible) AS faltante,
+                   SUM((vp.cantidad_pedida - vp.cantidad_disponible) * vp.precio_unitario) AS monto
+            FROM ventas_perdidas vp
+            JOIN productos p ON p.id = vp.producto_id
+            LEFT JOIN clientes c ON c.id = vp.cliente_id
+            WHERE vp.fecha >= :desde AND vp.fecha < :hasta
+            GROUP BY vp.cliente_id, c.nombre, vp.producto_id, p.nombre, p.categoria_id
+        """), parametros)
+        perdidas = [{**fila._mapping, "faltante": int(fila.faltante)} for fila in perdidas]
+    return vendidas, perdidas
+
+
 def _producto(fila) -> dict:
     datos = dict(fila._mapping)
     datos["costo"] = float(datos["costo"])
