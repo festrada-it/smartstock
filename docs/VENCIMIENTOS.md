@@ -1,44 +1,57 @@
 # Vencimientos por lote (#22)
 
-## Estado
+`GET /api/vencimientos` lista los lotes que vencen dentro de la ventana de su grupo, o que ya vencieron,
+para venderlos primero o retirarlos. Requiere el JWT de core-service (cualquier rol), como el resto de `/api`.
 
-Implementada la regla pura `analizar_vencimiento` en
-`analytics-service/app/vencimientos.py`, con tests sin base de datos.
-**No existe todavia `GET /api/vencimientos`**: la consulta, el contrato HTTP
-definitivo y los tests de integracion quedan pendientes de #20 (lotes).
-Esta etapa no completa ni cierra #22.
+## Respuesta
+
+Lista de lotes, ordenada por criticidad (ALTA, MEDIA, BAJA), luego por menos días restantes y por `lote_id`.
+Si no hay ninguno, devuelve `[]`.
+
+```json
+[
+  {
+    "lote_id": 12,
+    "producto_id": 4,
+    "sku": "HEL-001",
+    "producto": "Helado 1L",
+    "marca": "Frigor",
+    "grupo": "Congelados",
+    "cantidad_disponible": 40,
+    "fecha_vencimiento": "2026-11-12",
+    "dias_restantes": 3,
+    "valor_en_riesgo": 1200.0,
+    "criticidad": "ALTA",
+    "accion_sugerida": "Vender primero",
+    "dias_alerta_grupo": 30
+  }
+]
+```
+
+`marca` y `grupo` pueden ser `null` si el producto no los tiene.
+
+## Qué lotes entran
+
+- `cantidad_disponible > 0` y `fecha_vencimiento` cargada. Los lotes sin fecha no se alertan.
+- Vencen dentro de `categorias.dias_alerta_vencimiento` de su grupo (60 si el producto no tiene grupo),
+  contando hasta `hoy + N` inclusive. Todos los lotes ya vencidos entran.
+- Se incluyen los productos dados de baja: sus lotes siguen ocupando depósito.
 
 ## Regla
 
-Entradas: fecha de vencimiento (o `None`), cantidad disponible, costo unitario
-como `Decimal`, ventana de alerta del grupo en dias y fecha de referencia
-`hoy` explicita. No lee el reloj ni consulta la base.
+Es la función pura `analizar_vencimiento` de `analytics-service/app/vencimientos.py`.
 
-- Sin disponible o sin fecha de vencimiento: no hay alerta (`None`).
-- Se incluyen fechas hasta `hoy + N` inclusive, y todos los lotes ya vencidos.
-- ALTA: dias restantes <= 7, incluidos los vencidos.
-- MEDIA: dias restantes <= N/2, si no corresponde ALTA.
-- BAJA: el resto de los lotes incluidos.
-- Accion: `Vender primero`; si la fecha es anterior a hoy,
-  `Retirar de la venta`. Un lote que vence hoy no se considera ya vencido.
-- Valor en riesgo: disponible por **costo unitario del lote**, calculado con
-  `Decimal` sin conversion a flotante.
-- Cantidad, costo o ventana negativos, y costos no finitos, producen `ValueError`.
+| Campo | Regla |
+|---|---|
+| `dias_restantes` | `fecha_vencimiento - hoy`; negativo si ya venció |
+| `criticidad` | ALTA si ya venció o faltan ≤ 7 días; MEDIA si faltan ≤ N/2; BAJA en el resto |
+| `accion_sugerida` | `Vender primero`; `Retirar de la venta` si la fecha es anterior a hoy. Un lote que vence hoy aún se vende |
+| `valor_en_riesgo` | `cantidad_disponible` × `costo_unitario` **del lote**, en pesos con 2 decimales |
 
-El resultado contiene `cantidad_disponible`, `fecha_vencimiento`,
-`dias_restantes`, `valor_en_riesgo`, `criticidad` y `accion_sugerida`.
-La integracion agregara identificadores de lote/producto, producto, marca y grupo
-a partir del esquema definitivo de #20.
+## Probar
 
-## Verificacion sin Docker
-
-Desde `analytics-service`, con las dependencias del proyecto disponibles:
-
-```powershell
-python -m pytest tests\test_vencimientos.py
+```bash
+cd analytics-service
+pytest tests/test_vencimientos.py tests/test_api.py                       # sin base
+SMARTSTOCK_INTEGRACION=true pytest tests/test_db.py                       # con PostgreSQL
 ```
-
-Antes de completar #22: agregar consulta real e integracion PostgreSQL,
-modelo de respuesta y tests del endpoint autenticado; documentar el JSON final
-y verificar las suites existentes. La PR final debe ir hacia `develop` con
-`Closes #22`, nunca directamente a `main` o `develop`.

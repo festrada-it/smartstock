@@ -8,6 +8,9 @@ from app import config
 
 engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
 
+# Solo los pedidos que salieron del depósito son demanda e ingreso: ni los PENDIENTES ni los CANCELADOS.
+ESTADOS_QUE_VENDEN = ["CONFIRMADO", "ENVIADO", "ENTREGADO"]
+
 _SELECT_PRODUCTO = """
     SELECT p.id, p.sku, p.nombre, p.stock_actual, p.stock_minimo, p.costo, p.precio,
            pr.id AS proveedor_id, pr.nombre AS proveedor,
@@ -44,7 +47,7 @@ def ventas_diarias(dias: int, producto_id: int | None = None) -> pd.DataFrame:
     Los días sin ventas valen 0. No incluye el día de hoy porque todavía está en curso."""
     hoy = date.today()
     desde = hoy - timedelta(days=dias)
-    params = {"desde": desde, "hoy": hoy}
+    params = {"desde": desde, "hoy": hoy, "estados": ESTADOS_QUE_VENDEN}
     filtro = ""
     if producto_id is not None:
         filtro = "AND d.producto_id = :producto_id"
@@ -53,7 +56,7 @@ def ventas_diarias(dias: int, producto_id: int | None = None) -> pd.DataFrame:
         SELECT DATE(v.fecha) AS dia, d.producto_id, SUM(d.cantidad) AS unidades
         FROM detalle_venta d
         JOIN ventas v ON v.id = d.venta_id
-        WHERE v.fecha >= :desde AND v.fecha < :hoy AND NOT v.anulada {filtro}
+        WHERE v.fecha >= :desde AND v.fecha < :hoy AND v.estado = ANY(:estados) {filtro}
         GROUP BY DATE(v.fecha), d.producto_id
     """)
     with engine.connect() as conn:
@@ -89,17 +92,43 @@ def stock_historico(producto_id: int, stock_actual: int, dias: int) -> pd.Series
 
 
 def resumen_ventas(dias: int) -> dict:
+    """Unidades e ingresos de los pedidos vendidos. El ingreso es el total del pedido, con su descuento."""
+    parametros = {"desde": date.today() - timedelta(days=dias), "estados": ESTADOS_QUE_VENDEN}
     with engine.connect() as conn:
-        fila = conn.execute(
+        # Dos consultas: unir con el detalle repetiría el total del pedido por cada línea.
+        unidades = conn.execute(
             text("""
-                SELECT COALESCE(SUM(d.cantidad), 0) AS unidades,
-                       COALESCE(SUM(d.cantidad * d.precio_unitario), 0) AS ingresos
+                SELECT COALESCE(SUM(d.cantidad), 0)
                 FROM detalle_venta d JOIN ventas v ON v.id = d.venta_id
-                WHERE v.fecha >= :desde AND NOT v.anulada
+                WHERE v.fecha >= :desde AND v.estado = ANY(:estados)
             """),
-            {"desde": date.today() - timedelta(days=dias)},
-        ).one()
-    return {"unidades": int(fila.unidades), "ingresos": float(fila.ingresos)}
+            parametros,
+        ).scalar_one()
+        ingresos = conn.execute(
+            text("SELECT COALESCE(SUM(total), 0) FROM ventas WHERE fecha >= :desde AND estado = ANY(:estados)"),
+            parametros,
+        ).scalar_one()
+    return {"unidades": int(unidades), "ingresos": float(ingresos)}
+
+
+def lotes_con_vencimiento() -> list[dict]:
+    """Lotes con disponible y fecha de vencimiento, con la ventana de alerta de su grupo (60 días sin grupo).
+    Ya descarta los que vencen más allá de la ventana; la criticidad la decide app.vencimientos."""
+    with engine.connect() as conn:
+        filas = conn.execute(text("""
+            SELECT * FROM (
+                SELECT l.id AS lote_id, l.producto_id, p.sku, p.nombre AS producto, p.marca,
+                       c.nombre AS grupo, l.cantidad_disponible, l.fecha_vencimiento, l.costo_unitario,
+                       COALESCE(c.dias_alerta_vencimiento, :dias_por_defecto) AS dias_alerta_vencimiento
+                FROM lotes l
+                JOIN productos p ON p.id = l.producto_id
+                LEFT JOIN categorias c ON c.id = p.categoria_id
+                WHERE l.cantidad_disponible > 0 AND l.fecha_vencimiento IS NOT NULL
+            ) lote
+            WHERE fecha_vencimiento - CURRENT_DATE <= dias_alerta_vencimiento
+            ORDER BY lote_id
+        """), {"dias_por_defecto": config.DIAS_ALERTA_VENCIMIENTO_POR_DEFECTO})
+        return [dict(fila._mapping) for fila in filas]
 
 
 def _producto(fila) -> dict:

@@ -36,3 +36,23 @@ def analizar_vencimiento(fecha_vencimiento: date | None, cantidad_disponible: in
         "criticidad": criticidad,
         "accion_sugerida": "Retirar de la venta" if dias_restantes < 0 else "Vender primero",
     }
+
+
+_ORDEN_CRITICIDAD = {"ALTA": 0, "MEDIA": 1, "BAJA": 2}
+
+
+def listar_vencimientos(lotes: list[dict], hoy: date) -> list[dict]:
+    """Alertas de todos los lotes que corresponden, con los datos del lote y su producto,
+    de la más crítica a la menos crítica y, a igual criticidad, la que vence antes."""
+    alertas = []
+    for lote in lotes:
+        alerta = analizar_vencimiento(lote["fecha_vencimiento"], lote["cantidad_disponible"],
+                                      lote["costo_unitario"], lote["dias_alerta_vencimiento"], hoy)
+        if alerta is None:
+            continue
+        alertas.append({
+            "lote_id": lote["lote_id"], "producto_id": lote["producto_id"], "sku": lote["sku"],
+            "producto": lote["producto"], "marca": lote["marca"], "grupo": lote["grupo"],
+            **alerta, "dias_alerta_grupo": lote["dias_alerta_vencimiento"],
+        })
+    return sorted(alertas, key=lambda a: (_ORDEN_CRITICIDAD[a["criticidad"]], a["dias_restantes"], a["lote_id"]))

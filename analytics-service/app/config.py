@@ -12,6 +12,9 @@ CORS_ORIGENES = os.getenv(
 # Días de historial de ventas con los que se entrena el modelo
 DIAS_HISTORIAL = 90
 
+# Días de alerta de vencimiento de un producto sin grupo (igual que el valor por defecto de la base)
+DIAS_ALERTA_VENCIMIENTO_POR_DEFECTO = 60
+
 PARAMETROS_POR_DEFECTO = {
     "dias_reposicion": 7,
     "dias_cobertura": 30,
