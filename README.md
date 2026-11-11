@@ -22,19 +22,20 @@ SmartStock resuelve esto así:
 |----------|----------|
 | Quiebres | Predice la demanda (regresión sobre el historial de ventas). Avisa **antes** del quiebre: el punto de reposición tiene en cuenta el lead time del proveedor y su calificación. |
 | Vencimientos | Cada ingreso es un **lote** con vencimiento. Las ventas descuentan **FEFO** (primero lo que vence antes), con alerta según la vida útil de cada grupo de productos. |
-| Baja rotación | Regla configurable por grupo (por ejemplo, rotación < 10% en 30 días). Sugiere promocionar, comprar menos o no recomprar. |
+| Baja rotación (pendiente) | Está prevista una regla configurable por grupo (por ejemplo, rotación < 10% en 30 días). La integración con datos reales no está terminada; el monitor muestra ejemplos. |
 | Clientes | Ficha con calificación, historial de pedidos y productos y marcas que compra, visible al armar cada pedido. |
 
 ### Flujo del negocio
 
 ```
-Proveedor ──(ingreso de mercadería)──▶ Lote (vencimiento, costo) ──▶ Stock
-                                                                       │
-Cliente ──▶ Pedido PENDIENTE ──▶ CONFIRMADO (descuenta stock FEFO) ──▶ ENVIADO ──▶ ENTREGADO + factura
-                     │                │
-                     └───────┬────────┘
-                             ▼
-                         CANCELADO (si estaba confirmado, devuelve el stock)
+Proveedor → Ingreso de mercadería → Lote con vencimiento → Stock disponible
+Cliente → Crear pedido PENDIENTE (reserva stock FEFO vigente)
+        → CONFIRMADO (aceptación del cliente, sin nuevo descuento)
+        → ENVIADO → ENTREGADO + factura
+
+Cancelar un PENDIENTE o CONFIRMADO devuelve el stock a los lotes de origen.
+Si falta stock vigente, el pedido se rechaza y se registra el faltante como venta perdida.
+Un lote vencido se excluye de la venta y se retira mediante un ajuste de stock.
 ```
 
 El modelo no está atado a supermercados: sirve para cualquier PyME que compre y revenda (ferreterías, distribuidoras de bebidas, insumos). El detalle de las mejoras en curso está en [docs/plan-mejoras.md](docs/plan-mejoras.md).
@@ -64,18 +65,20 @@ El modelo no está atado a supermercados: sirve para cualquier PyME que compre y
 
 | Carpeta | Componente |
 |---------|------------|
-| [`frontend/`](frontend/) | Login, catálogo, ventas, monitor predictivo, usuarios y parámetros |
-| [`core-service/`](core-service/) | Microservicio 1: autenticación JWT + roles, catálogo, ventas y compras |
+| [`frontend/`](frontend/) | Login, catálogo, proveedores, clientes, pedidos, monitor predictivo, usuarios y parámetros |
+| [`core-service/`](core-service/) | Microservicio 1: autenticación JWT + roles, catálogo, proveedores, clientes, compras, lotes y pedidos |
 | [`analytics-service/`](analytics-service/) | Microservicio 2: proyección de demanda, quiebre, criticidad y lote sugerido |
 | [`database/`](database/) | Esquema y datos de prueba de PostgreSQL |
 | [`docs/`](docs/) | Plan de trabajo, plan de mejoras, contratos de API y minutas |
 
 ## Cómo levantar el proyecto
 
+La rama de integración de la entrega es `develop`. Los cambios de PRs abiertos estarán disponibles allí después de su merge.
+
 Requisito: [Docker Desktop](https://www.docker.com/products/docker-desktop/) y [Git](https://git-scm.com/).
 
 ```bash
-git clone https://github.com/festrada-it/smartstock.git
+git clone --branch develop https://github.com/festrada-it/smartstock.git
 cd smartstock
 docker compose up --build
 ```
@@ -92,7 +95,9 @@ docker compose up --build
 | `admin@smartstock.com` | `admin123` | Administrador |
 | `vendedor@smartstock.com` | `vendedor123` | Vendedor |
 
-Para borrar la base y recrearla desde cero: `docker compose down -v && docker compose up --build`
+Si el puerto 3000 está ocupado, cambiar el mapeo de `frontend` a `3001:80` en `docker-compose.yml` y agregar `http://localhost:3001` a `CORS_ORIGENES` de **ambos servicios** (conservando los orígenes existentes). Después, volver a ejecutar Compose y entrar a http://localhost:3001.
+
+Los scripts de `database/init/` se ejecutan automáticamente al crear una base vacía; no actualizan un volumen existente. Para recrear la base de prueba: `docker compose down -v && docker compose up --build`. **Este comando elimina todos los datos del volumen local.** Para detener el proyecto conservando los datos: `docker compose down`.
 
 ## Endpoints principales
 
@@ -111,12 +116,13 @@ Las filas marcadas con 🔜 están **planificadas** (ver [docs/plan-mejoras.md](
 | POST | `/compras` (ingreso de mercadería) | Admin, Vendedor |
 | GET/POST | `/usuarios` · PUT `/usuarios/{id}/estado?activo=` | Admin |
 | GET · PUT | `/parametros` · `/parametros/{clave}` | todos · Admin |
-| 🔜 GET · POST/PUT/DELETE | `/proveedores` · `/proveedores/{id}` · GET `/proveedores/{id}/productos` (1.1) | Admin, Vendedor · Admin |
-| 🔜 PUT | `/categorias/{id}` (grupo: días de alerta de vencimiento y umbral de rotación) (2.1) | Admin |
-| 🔜 GET · POST/PUT/DELETE | `/clientes` · `/clientes/{id}` · GET `/clientes/{id}/pedidos` · `/clientes/{id}/productos` (3.1) | Admin, Vendedor · Admin |
-| 🔜 GET | `/productos/{id}/lotes`; `POST /compras` crea un lote con vencimiento (4.1) | Admin, Vendedor |
-| 🔜 GET · POST | `/pedidos` · `/pedidos/{id}` · `/pedidos/{id}/confirmar` · `/enviar` · `/entregar` (5.1, 5.2) | Admin, Vendedor |
-| 🔜 POST | `/pedidos/{id}/cancelar` (reemplaza `/ventas/{id}/anular`) (5.2) | Admin |
+| GET · POST/PUT/DELETE | `/proveedores` · `/proveedores/{id}` · GET `/proveedores/{id}/productos` (1.1) | Admin, Vendedor · Admin |
+| PUT | `/categorias/{id}` (grupo: días de alerta de vencimiento y umbral de rotación) (2.1) | Admin |
+| GET · POST/PUT/DELETE | `/clientes` · `/clientes/{id}` · GET `/clientes/{id}/pedidos` · `/clientes/{id}/productos` (3.1) | Admin, Vendedor · Admin |
+| GET | `/productos/{id}/lotes`; `POST /compras` crea un lote con vencimiento (4.1) | Admin, Vendedor |
+| POST | `/lotes/{id}/retirar` (retiro completo de un lote vencido, [contrato](docs/API-LOTES.md)) | Admin, Vendedor |
+| GET · POST | `/pedidos` · `/pedidos/{id}` · `/pedidos/{id}/confirmar` · `/enviar` · `/entregar` (5.1, 5.2) | Admin, Vendedor |
+| POST | `/pedidos/{id}/cancelar` (reemplaza `/ventas/{id}/anular`) (5.2) | Admin |
 
 **analytics-service** (`http://localhost:8000/api`, requiere el JWT de core-service)
 
@@ -131,6 +137,33 @@ Las filas marcadas con 🔜 están **planificadas** (ver [docs/plan-mejoras.md](
 | 🔜 `/rotacion` · `/rotacion/grupos` | Rotación de 30 días contra el umbral del grupo, con sugerencia (6.1) |
 | `/predicciones` (amplía) | Punto de reposición según el lead time del proveedor y su margen, fecha de reposición y "comprar ahora" ([contrato](docs/REPOSICION.md), 7.1) |
 | 🔜 `/alertas/panel` | Alertas unificadas: quiebre, reposición, stock mínimo, vencimiento y baja rotación (8.1) |
+
+## Estado de la entrega y PRs abiertos
+
+Este README incluye los ajustes de #85: pedidos y reposición conectados a las APIs reales.
+Las siguientes funciones están en PRs separados; no se consideran integradas en `develop` hasta su merge:
+
+| PR | Función | Estado al preparar la entrega |
+|----|---------|------------------------------|
+| [#82](https://github.com/festrada-it/smartstock/pull/82) | ADMIN puede listar productos inactivos con `GET /api/productos?activo=false` y reactivarlos con `PUT /api/productos/{id}/reactivar` | Pendiente de aprobación y merge; [contrato](https://github.com/festrada-it/smartstock/blob/codex/productos-reactivar-69/docs/API-PRODUCTOS-GRUPOS.md) en la rama del PR |
+| [#83](https://github.com/festrada-it/smartstock/pull/83) | Panel del vendedor: solicitar reposición, ofrecer lotes próximos a vencer y registrar el retiro de vencidos | Aprobado, pendiente de merge; consume APIs reales |
+| [#80](https://github.com/festrada-it/smartstock/pull/80) | `GET /api/dashboard/fill-rate`: vendidas / (vendidas + perdidas), por cliente y producto, con período anterior | Aprobado, pendiente de merge; contrato `docs/FILL-RATE.md` en la rama del PR. Publicar el endpoint no conecta automáticamente una pantalla |
+
+Los borradores [#43](https://github.com/festrada-it/smartstock/pull/43) (rotación) y
+[#44](https://github.com/festrada-it/smartstock/pull/44) (panel unificado de alertas)
+quedan fuera de esta entrega. Contienen cálculos parciales; faltan endpoints e integración.
+
+## Datos reales y apartados de ejemplo
+
+Login, catálogo, proveedores, clientes, compras y pedidos usan las APIs reales.
+Crear un pedido reserva stock en la base. Recargar la página conserva el pedido.
+Las predicciones, el resumen de ventas y los datos de reposición también provienen de analytics.
+
+El panel unificado de alertas y el dashboard de inventario todavía muestran
+datos de ejemplo, señalados con un aviso en pantalla. Esto incluye las alertas de baja rotación y los indicadores de rotación/DSI del dashboard de inventario; no son mediciones reales. Sus endpoints siguen
+pendientes de integración. Los interruptores están en `frontend/js/config.js`:
+`pedidos` y `reposicion` están en `false`; `panelAlertas` y
+`dashboardInventario` siguen en `true`.
 
 ## Desarrollo sin Docker (opcional)
 
@@ -149,10 +182,15 @@ Levantar solo la base: `docker compose up db`
 
 ## Tests
 
+Desde la raíz del repositorio, ejecutar cada comando por separado:
+
 ```bash
-cd core-service && ./mvnw verify
-cd analytics-service && pytest
+(cd core-service && ./mvnw verify)
+(cd analytics-service && pytest)
+node --test frontend/tests/*.test.js
 ```
+
+Java requiere JDK 21; Python, las dependencias de `analytics-service/requirements.txt`; frontend, Node.js 20. Las pruebas de integración requieren PostgreSQL con los scripts de `database/init/` aplicados. Para incluirlas, definir `SMARTSTOCK_INTEGRACION=true` y, en analytics, `DATABASE_URL` apuntando a la base de prueba (ver `.github/workflows/ci.yml`).
 
 Los mismos tests corren automáticamente en GitHub Actions en cada Pull Request.
 
