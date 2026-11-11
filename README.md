@@ -28,13 +28,14 @@ SmartStock resuelve esto así:
 ### Flujo del negocio
 
 ```
-Proveedor ──(ingreso de mercadería)──▶ Lote (vencimiento, costo) ──▶ Stock
-                                                                       │
-Cliente ──▶ Pedido PENDIENTE ──▶ CONFIRMADO (descuenta stock FEFO) ──▶ ENVIADO ──▶ ENTREGADO + factura
-                     │                │
-                     └───────┬────────┘
-                             ▼
-                         CANCELADO (si estaba confirmado, devuelve el stock)
+Proveedor → Ingreso de mercadería → Lote con vencimiento → Stock disponible
+Cliente → Crear pedido PENDIENTE (reserva stock FEFO vigente)
+        → CONFIRMADO (aceptación del cliente, sin nuevo descuento)
+        → ENVIADO → ENTREGADO + factura
+
+Cancelar un PENDIENTE o CONFIRMADO devuelve el stock a los lotes de origen.
+Si falta stock vigente, el pedido se rechaza y se registra el faltante como venta perdida.
+Un lote vencido se excluye de la venta y se retira mediante un ajuste de stock.
 ```
 
 El modelo no está atado a supermercados: sirve para cualquier PyME que compre y revenda (ferreterías, distribuidoras de bebidas, insumos). El detalle de las mejoras en curso está en [docs/plan-mejoras.md](docs/plan-mejoras.md).
@@ -111,12 +112,12 @@ Las filas marcadas con 🔜 están **planificadas** (ver [docs/plan-mejoras.md](
 | POST | `/compras` (ingreso de mercadería) | Admin, Vendedor |
 | GET/POST | `/usuarios` · PUT `/usuarios/{id}/estado?activo=` | Admin |
 | GET · PUT | `/parametros` · `/parametros/{clave}` | todos · Admin |
-| 🔜 GET · POST/PUT/DELETE | `/proveedores` · `/proveedores/{id}` · GET `/proveedores/{id}/productos` (1.1) | Admin, Vendedor · Admin |
-| 🔜 PUT | `/categorias/{id}` (grupo: días de alerta de vencimiento y umbral de rotación) (2.1) | Admin |
-| 🔜 GET · POST/PUT/DELETE | `/clientes` · `/clientes/{id}` · GET `/clientes/{id}/pedidos` · `/clientes/{id}/productos` (3.1) | Admin, Vendedor · Admin |
-| 🔜 GET | `/productos/{id}/lotes`; `POST /compras` crea un lote con vencimiento (4.1) | Admin, Vendedor |
-| 🔜 GET · POST | `/pedidos` · `/pedidos/{id}` · `/pedidos/{id}/confirmar` · `/enviar` · `/entregar` (5.1, 5.2) | Admin, Vendedor |
-| 🔜 POST | `/pedidos/{id}/cancelar` (reemplaza `/ventas/{id}/anular`) (5.2) | Admin |
+| GET · POST/PUT/DELETE | `/proveedores` · `/proveedores/{id}` · GET `/proveedores/{id}/productos` (1.1) | Admin, Vendedor · Admin |
+| PUT | `/categorias/{id}` (grupo: días de alerta de vencimiento y umbral de rotación) (2.1) | Admin |
+| GET · POST/PUT/DELETE | `/clientes` · `/clientes/{id}` · GET `/clientes/{id}/pedidos` · `/clientes/{id}/productos` (3.1) | Admin, Vendedor · Admin |
+| GET | `/productos/{id}/lotes`; `POST /compras` crea un lote con vencimiento (4.1) | Admin, Vendedor |
+| GET · POST | `/pedidos` · `/pedidos/{id}` · `/pedidos/{id}/confirmar` · `/enviar` · `/entregar` (5.1, 5.2) | Admin, Vendedor |
+| POST | `/pedidos/{id}/cancelar` (reemplaza `/ventas/{id}/anular`) (5.2) | Admin |
 
 **analytics-service** (`http://localhost:8000/api`, requiere el JWT de core-service)
 
@@ -131,6 +132,18 @@ Las filas marcadas con 🔜 están **planificadas** (ver [docs/plan-mejoras.md](
 | 🔜 `/rotacion` · `/rotacion/grupos` | Rotación de 30 días contra el umbral del grupo, con sugerencia (6.1) |
 | `/predicciones` (amplía) | Punto de reposición según el lead time del proveedor y su margen, fecha de reposición y "comprar ahora" ([contrato](docs/REPOSICION.md), 7.1) |
 | 🔜 `/alertas/panel` | Alertas unificadas: quiebre, reposición, stock mínimo, vencimiento y baja rotación (8.1) |
+
+## Datos reales y apartados de ejemplo
+
+Login, catálogo, proveedores, clientes, compras y pedidos usan las APIs reales.
+Crear un pedido reserva stock en la base. Recargar la página conserva el pedido.
+Las predicciones, el resumen de ventas y los datos de reposición también provienen de analytics.
+
+El panel unificado de alertas y el dashboard de inventario todavía muestran
+datos de ejemplo, señalados con un aviso en pantalla. Sus endpoints siguen
+pendientes de integración. Los interruptores están en `frontend/js/config.js`:
+`pedidos` y `reposicion` están en `false`; `panelAlertas` y
+`dashboardInventario` siguen en `true`.
 
 ## Desarrollo sin Docker (opcional)
 
