@@ -32,7 +32,7 @@ const Sesion = {
 };
 
 function paginaInicio(rol) {
-    return rol === 'ADMIN' ? 'dashboard.html' : 'pedidos.html';
+    return rol === 'ADMIN' ? 'dashboard.html' : 'panel.html';
 }
 
 const MENSAJES_HTTP = {
