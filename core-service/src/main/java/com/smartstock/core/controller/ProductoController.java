@@ -3,6 +3,7 @@ package com.smartstock.core.controller;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +21,7 @@ import com.smartstock.core.dto.HistorialMovimientosResponse;
 import com.smartstock.core.dto.ProductoResponse;
 import com.smartstock.core.service.ProductoService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -35,8 +37,13 @@ public class ProductoController {
     @GetMapping
     public List<ProductoResponse> listar(@RequestParam(required = false) String q,
                                         @RequestParam(required = false) Long categoriaId,
-                                        @RequestParam(required = false) Long proveedorId) {
-        return productoService.listar(q, categoriaId,proveedorId);
+                                        @RequestParam(required = false) Long proveedorId,
+                                        @RequestParam(defaultValue = "true") boolean activo,
+                                        HttpServletRequest request) {
+        if (!activo && !request.isUserInRole("ADMIN")) {
+            throw new AccessDeniedException("Solo ADMIN puede listar productos dados de baja");
+        }
+        return productoService.listar(q, categoriaId, proveedorId, activo);
     }
 
     @GetMapping("/{id}")
@@ -65,6 +72,11 @@ public class ProductoController {
     @PutMapping("/{id}")
     public ProductoResponse actualizar(@PathVariable Long id, @Valid @RequestBody ProductoRequest request) {
         return productoService.actualizar(id, request);
+    }
+
+    @PutMapping("/{id}/reactivar")
+    public ProductoResponse reactivar(@PathVariable Long id) {
+        return productoService.reactivar(id);
     }
 
     @DeleteMapping("/{id}")

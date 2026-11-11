@@ -57,3 +57,9 @@ sobrescribe configuraciones editadas después de la primera aplicación.
 
 Analytics conserva su contrato de `/api/predicciones`; los productos nuevos
 tienen historial para entrenar. No se agrega ninguna mejora al predictor.
+
+## Productos dados de baja
+
+- `GET /api/productos?activo=false` lista únicamente productos inactivos. Solo ADMIN; VENDEDOR recibe 403. Admite los filtros `q`, `categoriaId` y `proveedorId`. Si se omite `activo` o se pasa `activo=true`, devuelve solo activos y está disponible para ambos roles.
+- `PUT /api/productos/{id}/reactivar` está disponible solo para ADMIN y no requiere cuerpo. Devuelve 200 con el mismo objeto de producto del catálogo. Repetir la operación sobre un producto activo devuelve 200 sin cambios. Un ID inexistente devuelve 404.
+- La reactivación conserva el ID, el stock y el historial de movimientos y ventas. `DELETE /api/productos/{id}` sigue dando de baja de forma lógica.

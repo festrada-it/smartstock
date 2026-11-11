@@ -18,8 +18,8 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
             + "WHERE p.proveedor.id = :proveedorId AND p.activo = true ORDER BY p.nombre, p.id")
     List<Producto> findByProveedorIdAndActivoTrueOrderByNombreAscIdAsc(@Param("proveedorId") Long proveedorId);
 
-    @Query("SELECT p FROM Producto p LEFT JOIN FETCH p.categoria LEFT JOIN FETCH p.proveedor WHERE p.activo = true ORDER BY p.nombre, p.id")
-    List<Producto> findActivosConCategoria();
+    @Query("SELECT p FROM Producto p LEFT JOIN FETCH p.categoria LEFT JOIN FETCH p.proveedor WHERE p.activo = :activo ORDER BY p.nombre, p.id")
+    List<Producto> findPorEstadoConCategoria(@Param("activo") boolean activo);
 
     /**
      * Bloquea la fila del producto hasta que termine la transacción,

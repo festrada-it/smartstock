@@ -83,6 +83,8 @@ class ControllersTest {
                 Arguments.of("POST", "/api/proveedores", "{\"nombre\":\"Proveedor\",\"leadTimeDias\":3,\"calidad\":\"BUENA\",\"clasificacion\":4}", 201, false),
                 Arguments.of("PUT", "/api/proveedores/1", "{\"nombre\":\"Proveedor\",\"leadTimeDias\":3,\"calidad\":\"BUENA\",\"clasificacion\":4}", 200, false),
                 Arguments.of("DELETE", "/api/proveedores/1", "", 204, false),
+                Arguments.of("GET", "/api/productos?activo=false", "", 200, false),
+                Arguments.of("PUT", "/api/productos/1/reactivar", "", 200, false),
                 Arguments.of("GET", "/api/productos", "", 200, true),
                 Arguments.of("GET", "/api/productos/1", "", 200, true),
                 Arguments.of("GET", "/api/productos/1/lotes", "", 200, true),
