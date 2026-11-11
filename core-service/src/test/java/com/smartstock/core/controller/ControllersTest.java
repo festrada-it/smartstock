@@ -53,6 +53,7 @@ class ControllersTest {
     @MockBean UsuarioService usuarios;
     @MockBean ProveedorService proveedores;
     @MockBean ClienteService clientes;
+    @MockBean LoteService lotes;
     @MockBean CategoriaRepository categorias;
     @MockBean ParametroRepository parametros;
 
@@ -98,7 +99,9 @@ class ControllersTest {
                 Arguments.of("POST", "/api/ventas", "{\"items\":[{\"productoId\":1,\"cantidad\":2}]}", 201, true),
                 Arguments.of("GET", "/api/ventas/hoy", "", 200, true),
                 Arguments.of("POST", "/api/ventas/1/anular", "", 200, false),
-                Arguments.of("POST", "/api/compras", "{\"productoId\":1,\"cantidad\":2}", 201, true));
+                Arguments.of("POST", "/api/compras", "{\"productoId\":1,\"cantidad\":2}", 201, true),
+                Arguments.of("POST", "/api/lotes/1/retirar", "", 200, true),
+                Arguments.of("POST", "/api/lotes/1/retirar", "{\"observacion\":\"Remito 0001-45\"}", 200, true));
     }
 
     @ParameterizedTest

@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.smartstock.core.dto.LoteResponse;
+import com.smartstock.core.dto.RetiroLoteResponse;
 import com.smartstock.core.exception.NegocioException;
 import com.smartstock.core.exception.RecursoNoEncontradoException;
 import com.smartstock.core.model.*;
@@ -15,11 +16,18 @@ import com.smartstock.core.repository.*;
 
 @Service
 public class LoteService {
+    static final String OBSERVACION_RETIRO = "Retiro de lote vencido";
+
     private final LoteRepository lotes;
     private final ProductoRepository productos;
-    public LoteService(LoteRepository lotes, ProductoRepository productos) {
+    private final UsuarioRepository usuarios;
+    private final MovimientoStockRepository movimientos;
+    public LoteService(LoteRepository lotes, ProductoRepository productos,
+                       UsuarioRepository usuarios, MovimientoStockRepository movimientos) {
         this.lotes = lotes;
         this.productos = productos;
+        this.usuarios = usuarios;
+        this.movimientos = movimientos;
     }
     public static LocalDate hoy() { return LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")); }
     public static BigDecimal normalizarCosto(BigDecimal costo) {
@@ -34,6 +42,38 @@ public class LoteService {
     public List<LoteResponse> consultar(Long id, boolean todos) {
         if (!productos.existsById(id)) throw new RecursoNoEncontradoException("Producto " + id + " no encontrado");
         return lotes.consultar(id, todos).stream().map(LoteResponse::desde).toList();
+    }
+
+    /**
+     * Retira el lote vencido completo: lo deja en 0, descuenta el stock y registra un AJUSTE negativo.
+     * Bloquea el producto antes que el lote, el mismo orden que usan ventas y compras.
+     */
+    @Transactional
+    public RetiroLoteResponse retirarVencido(Long loteId, String observacion, String email) {
+        Long productoId = lotes.productoDe(loteId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Lote " + loteId + " no encontrado"));
+        Producto producto = productos.findByIdParaActualizar(productoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Lote " + loteId + " no encontrado"));
+        Lote lote = lotes.bloquear(loteId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Lote " + loteId + " no encontrado"));
+        if (!lote.estaVencido(hoy())) {
+            throw new NegocioException("Solo se pueden retirar lotes vencidos");
+        }
+        int cantidad = lote.getCantidadDisponible();
+        if (cantidad == 0) {
+            throw new NegocioException("El lote " + loteId + " no tiene unidades para retirar");
+        }
+        Usuario usuario = usuarios.findByEmail(email)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario " + email + " no encontrado"));
+        lote.setCantidadDisponible(0);
+        producto.setStockActual(producto.getStockActual() - cantidad);
+        var movimiento = new MovimientoStock(producto, TipoMovimiento.AJUSTE, -cantidad, usuario);
+        movimiento.setLoteId(lote.getId());
+        movimiento.setObservacion(observacion == null || observacion.isBlank()
+                ? OBSERVACION_RETIRO : OBSERVACION_RETIRO + ": " + observacion.trim());
+        movimientos.save(movimiento);
+        return new RetiroLoteResponse(lote.getId(), producto.getId(), producto.getNombre(),
+                lote.getFechaVencimiento(), cantidad, producto.getStockActual());
     }
 
     /** El llamador bloquea primero el producto; la apertura usa el stock ANTERIOR a la variación. */
